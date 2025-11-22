@@ -9,7 +9,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-yekan-bakh);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-yekan-bakh);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -1,11 +1,5 @@
-import { Vazirmatn } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
-
-const vazirmatn = Vazirmatn({
-  variable: "--font-vazirmatn",
-  subsets: ["arabic"],
-});
 
 const yekanBakh = localFont({
   src: [
@@ -36,7 +30,7 @@ const yekanBakh = localFont({
     },
     {
       path: "../../public/fonts/ttf/Yekan Bakh FaNum 06 Bold.ttf",
-      weight: "700",
+      weight: "600",
       style: "normal",
     },
     {
