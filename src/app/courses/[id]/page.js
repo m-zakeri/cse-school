@@ -1,10 +1,12 @@
 import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
-export default function CourseDetails({ params }) {
+export default function CourseDetails({ params, searchParams }) {
   const courseId = parseInt(params.id);
   const course = courses.find((c) => c.id === courseId);
+  const fromSyllabus = searchParams?.from === "syllabus";
 
   if (!course) {
     notFound();
@@ -109,17 +111,29 @@ export default function CourseDetails({ params }) {
       </div>
 
       {/* Action Buttons */}
-      <div className="mt-8 flex justify-center space-x-4 space-x-reverse">
-        <button className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-lg transition-colors">
-          ثبت‌نام در دوره
-        </button>
-        <a
-          href="/courses"
-          className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-8 rounded-lg transition-colors"
-        >
-          بازگشت به لیست دوره‌ها
-        </a>
-      </div>
+      {!fromSyllabus && (
+        <div className="mt-8 flex justify-center space-x-4 space-x-reverse">
+          <button className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-lg transition-colors">
+            ثبت‌نام در دوره
+          </button>
+          <Link
+            href="/courses"
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-8 rounded-lg transition-colors"
+          >
+            بازگشت به لیست دوره‌ها
+          </Link>
+        </div>
+      )}
+      {fromSyllabus && (
+        <div className="mt-8 flex justify-center space-x-4 space-x-reverse">
+          <Link
+            href="/syllabus"
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-8 rounded-lg transition-colors"
+          >
+            بازگشت به سرفصل دوره‌ها
+          </Link>
+        </div>
+      )}
     </MainLayout>
   );
 }

@@ -1,6 +1,9 @@
 import MainLayout from "@/components/Layout/MainLayout";
+import Link from "next/link";
 
-export default function CourseDetails() {
+export default function CourseDetails({ searchParams }) {
+  const fromSyllabus = searchParams?.from === "syllabus";
+
   return (
     <MainLayout>
       {/* Page Title */}
@@ -322,7 +325,7 @@ export default function CourseDetails() {
             Edition, Cambridge University Press, 2017.
           </li>
           <li className="text-gray-700">
-            P. C. Jorgensen and B. DeVries. Software Testing: A Craftsman's
+            P. C. Jorgensen and B. DeVries. Software Testing: A Craftsman&apos;s
             Approach. 5th Edition, CRC Press, 2021.
           </li>
           <li className="text-gray-700">
@@ -347,17 +350,29 @@ export default function CourseDetails() {
       </div>
 
       {/* Action Buttons */}
-      <div className="mt-8 flex justify-center space-x-4 space-x-reverse">
-        <button className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-lg transition-colors">
-          ثبت‌نام در دوره
-        </button>
-        <a
-          href="/courses"
-          className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-8 rounded-lg transition-colors"
-        >
-          بازگشت به لیست دوره‌ها
-        </a>
-      </div>
+      {!fromSyllabus && (
+        <div className="mt-8 flex justify-center space-x-4 space-x-reverse">
+          <button className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-lg transition-colors">
+            ثبت‌نام در دوره
+          </button>
+          <Link
+            href="/courses"
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-8 rounded-lg transition-colors"
+          >
+            بازگشت به لیست دوره‌ها
+          </Link>
+        </div>
+      )}
+      {fromSyllabus && (
+        <div className="mt-8 flex justify-center space-x-4 space-x-reverse">
+          <Link
+            href="/syllabus"
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-8 rounded-lg transition-colors"
+          >
+            بازگشت به سرفصل دوره‌ها
+          </Link>
+        </div>
+      )}
     </MainLayout>
   );
 }
