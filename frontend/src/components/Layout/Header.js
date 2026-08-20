@@ -27,6 +27,9 @@ const Header = () => {
       "/terms": "شرایط و مقررات",
       "/about": "درباره مدرسه",
       "/contact": "تماس با ما",
+      "/login": "ورود به پرتال",
+      "/dashboard": "پرتال دانشجو",
+      "/admin": "پنل مدیریت آموزش",
     };
 
     if (routes[pathname]) {
@@ -97,7 +100,13 @@ const Header = () => {
         </nav>
 
         {/* Header Right Actions */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Link
+            href="/login"
+            className="text-xs font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 transition-colors"
+          >
+            ورود / پرتال
+          </Link>
           <Link
             href="/register"
             className="hidden sm:inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3.5 rounded-xl shadow-xs hover:shadow transition-all"

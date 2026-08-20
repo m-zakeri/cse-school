@@ -11,6 +11,7 @@ Client application for the Amirkabir University of Technology Computer Engineeri
 - Typography: Full range of Yekan Bakh FaNum font weights with Persian numerical glyphs.
 - Standalone SVG Icon System: Clean, accessible, lightweight inline SVG icons with zero external icon package overhead.
 - Comprehensive Course Syllabi: Detailed week-by-week topics, prerequisites, software toolsets, grading schemes, and academic textbook references.
+- Student & Admin Portals: Interactive registration workflow, tracking receipts, student dashboard, and admin management console.
 - Mobile Navigation: Slide-over drawer menu for responsive mobile browsing.
 - SEO and Performance: Optimized asset delivery via Next.js image and local font loaders.
 
@@ -39,7 +40,10 @@ frontend/
 │   │   ├── terms/                # Academic regulations, discounts, and policies
 │   │   ├── info/                 # Supplementary information and FAQ
 │   │   ├── calendar/             # Academic calendar and term timelines
-│   │   ├── register/             # Registration instructions and application form
+│   │   ├── register/             # Registration instructions, admission form, and receipts
+│   │   ├── login/                # Student & Admin authentication portal
+│   │   ├── dashboard/            # Student personal dashboard and class links
+│   │   ├── admin/                # Academic admin management and enrollment reviewer
 │   │   └── micromaster/          # Micro-master bundled programs
 │   ├── components/               # Reusable React components
 │   │   ├── Icons.js              # Dedicated accessible SVG icon system
@@ -49,6 +53,9 @@ frontend/
 │   │       ├── Header.js         # Navigation header and breadcrumbs
 │   │       ├── Sidebar.js        # Responsive sidebar with active state tracking
 │   │       └── MainLayout.js     # Unified page layout wrapper
+│   ├── lib/
+│   │   ├── api.js                # Asynchronous API client for backend communication
+│   │   └── auth.js               # Authentication session and role helper
 │   └── data/
 │       ├── sampleData.js         # Static seed data for courses and instructors
 │       └── coursesFullDetails.js # Comprehensive syllabi and course specifications
@@ -75,7 +82,10 @@ frontend/
 | `/terms` | Rules and Policies | Academic regulations, refund policies, and evaluation criteria |
 | `/info` | Information | Frequently asked questions (FAQ) |
 | `/calendar` | Academic Calendar | Term schedules, enrollment deadlines, and exam dates |
-| `/register` | Registration | Step-by-step enrollment guide and submission form |
+| `/register` | Registration | Step-by-step enrollment guide, admission form, and instant tracking receipt |
+| `/login` | Authentication Portal | Unified login for students and faculty administrators |
+| `/dashboard` | Student Portal | Enrolled courses, online classroom access, and academic records |
+| `/admin` | Admin Management | Review student applications, search enrollments, and manage course statuses |
 | `/micromaster` | Micro-Masters | Multi-course certification packages |
 
 ---

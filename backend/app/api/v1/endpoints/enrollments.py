@@ -1,8 +1,10 @@
 import uuid
 import secrets
-from typing import List, Any
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from typing import List, Any, Optional
+from decimal import Decimal
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
+from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
@@ -13,6 +15,11 @@ from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.schemas.enrollment import EnrollmentCreate, BatchEnrollmentCreate, EnrollmentRead
 
 router = APIRouter()
+
+
+class EnrollmentStatusUpdate(BaseModel):
+    status: EnrollmentStatus
+    final_grade: Optional[Decimal] = None
 
 
 def generate_tracking_code() -> str:
@@ -27,7 +34,6 @@ async def create_enrollment(
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """ثبت‌نام مستقیم در یک دوره با ایجاد یا بازیابی حساب کاربری"""
-    # 1. Check Course exists
     stmt_course = select(Course).where(Course.id == enroll_in.course_id)
     res_course = await db.execute(stmt_course)
     course = res_course.scalars().first()
@@ -37,7 +43,6 @@ async def create_enrollment(
             detail="دوره مورد نظر یافت نشد.",
         )
 
-    # 2. Get or Create User by national_id
     stmt_user = select(User).where(User.national_id == enroll_in.national_id)
     res_user = await db.execute(stmt_user)
     user = res_user.scalars().first()
@@ -57,7 +62,6 @@ async def create_enrollment(
         db.add(user)
         await db.flush()
     else:
-        # Update user profile info if provided
         user.full_name = enroll_in.full_name
         user.phone_number = enroll_in.phone_number
         user.email = enroll_in.email
@@ -68,7 +72,6 @@ async def create_enrollment(
         if enroll_in.field_of_study:
             user.field_of_study = enroll_in.field_of_study
 
-    # 3. Check if already enrolled in this course
     stmt_exist = select(Enrollment).where(
         Enrollment.user_id == user.id,
         Enrollment.course_id == course.id,
@@ -84,19 +87,17 @@ async def create_enrollment(
             )
         return existing_enrollment
 
-    # 4. Create new enrollment
     enrollment = Enrollment(
         user_id=user.id,
         course_id=course.id,
         term_id=course.term_id,
-        status=EnrollmentStatus.PENDING_PAYMENT,
+        status=EnrollmentStatus.REGISTERED,  # Mark as registered directly upon admission form submission
         tracking_code=generate_tracking_code(),
     )
     db.add(enrollment)
     await db.commit()
     await db.refresh(enrollment)
 
-    # Reload with course and user relationships
     stmt_reload = (
         select(Enrollment)
         .where(Enrollment.id == enrollment.id)
@@ -121,7 +122,6 @@ async def create_batch_enrollments(
             detail="حداقل یک دوره باید برای ثبت‌نام انتخاب شود.",
         )
 
-    # 1. Get or Create User
     stmt_user = select(User).where(User.national_id == batch_in.national_id)
     res_user = await db.execute(stmt_user)
     user = res_user.scalars().first()
@@ -140,6 +140,16 @@ async def create_batch_enrollments(
         )
         db.add(user)
         await db.flush()
+    else:
+        user.full_name = batch_in.full_name
+        user.phone_number = batch_in.phone_number
+        user.email = batch_in.email
+        if batch_in.education_level:
+            user.education_level = batch_in.education_level
+        if batch_in.university:
+            user.university = batch_in.university
+        if batch_in.field_of_study:
+            user.field_of_study = batch_in.field_of_study
 
     enrollment_ids = []
     for c_id in batch_in.course_ids:
@@ -163,7 +173,7 @@ async def create_batch_enrollments(
                 user_id=user.id,
                 course_id=course.id,
                 term_id=course.term_id,
-                status=EnrollmentStatus.PENDING_PAYMENT,
+                status=EnrollmentStatus.REGISTERED,
                 tracking_code=generate_tracking_code(),
             )
             db.add(enr)
@@ -184,27 +194,70 @@ async def create_batch_enrollments(
     return res_all.scalars().all()
 
 
-@router.get("/tracking/{tracking_code}", response_model=EnrollmentRead)
-async def get_enrollment_by_tracking(
-    tracking_code: str,
+@router.get("/user/{national_id}", response_model=List[EnrollmentRead])
+async def get_user_enrollments(
+    national_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
-    """استعلام وضعیت ثبت‌نام با استفاده از کد رهگیری"""
+    """دریافت لیست دوره‌های ثبت‌نام‌شده کاربر با کد ملی"""
     stmt = (
         select(Enrollment)
-        .where(Enrollment.tracking_code == tracking_code)
+        .join(User, Enrollment.user_id == User.id)
+        .where(User.national_id == national_id)
+        .options(
+            selectinload(Enrollment.course),
+            selectinload(Enrollment.user),
+        )
+        .order_by(desc(Enrollment.created_at))
+    )
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
+
+@router.get("/admin/all", response_model=List[EnrollmentRead])
+async def get_all_enrollments_admin(
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """دریافت تمامی ثبت‌نام‌ها برای پنل مدیریت آموزش"""
+    stmt = (
+        select(Enrollment)
+        .options(
+            selectinload(Enrollment.course),
+            selectinload(Enrollment.user),
+        )
+        .order_by(desc(Enrollment.created_at))
+    )
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
+
+@router.put("/admin/{enrollment_id}/status", response_model=EnrollmentRead)
+async def update_enrollment_status(
+    enrollment_id: uuid.UUID,
+    update_in: EnrollmentStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """تغییر وضعیت ثبت‌نام یا ثبت نمره توسط ادمین"""
+    stmt = (
+        select(Enrollment)
+        .where(Enrollment.id == enrollment_id)
         .options(
             selectinload(Enrollment.course),
             selectinload(Enrollment.user),
         )
     )
     res = await db.execute(stmt)
-    enrollment = res.scalars().first()
-
-    if not enrollment:
+    enr = res.scalars().first()
+    if not enr:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="ثبت‌نامی با این کد رهگیری یافت نشد.",
+            detail="پرونده ثبت‌نام یافت نشد.",
         )
 
-    return enrollment
+    enr.status = update_in.status
+    if update_in.final_grade is not None:
+        enr.final_grade = update_in.final_grade
+
+    await db.commit()
+    await db.refresh(enr)
+    return enr

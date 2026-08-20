@@ -55,6 +55,11 @@ const Sidebar = () => {
       icon: UserPlusIcon,
     },
     {
+      title: "ورود / پرتال کاربری",
+      href: "/login",
+      icon: ShieldCheckIcon,
+    },
+    {
       title: "اطلاعات تکمیلی",
       href: "/info",
       icon: InfoIcon,
