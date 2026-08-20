@@ -13,6 +13,10 @@ services:
       - /app/.next
     environment:
       - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true
     restart: unless-stopped
     container_name: ce-school-dev
+    stdin_open: true
+    tty: true
 

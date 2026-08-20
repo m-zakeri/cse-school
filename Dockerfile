@@ -5,17 +5,22 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm ci --ignore-scripts && \
+    npm cache clean --force
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
 WORKDIR /app
-RUN apk add --no-cache ca-certificates && update-ca-certificates
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
 
 # Disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy source code
+COPY . .
 
 # Build the application
 RUN npm run build

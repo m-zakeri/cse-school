@@ -45,6 +45,9 @@ const yekanBakh = localFont({
     },
   ],
   variable: "--font-yekan-bakh",
+  display: "swap",
+  preload: true,
+  fallback: ["Arial", "Helvetica", "sans-serif"],
 });
 
 export const metadata = {
