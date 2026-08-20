@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Union, Any
 from decimal import Decimal
 from pydantic import BaseModel
 from app.models.enrollment import EnrollmentStatus
@@ -9,7 +9,7 @@ from app.schemas.user import UserRead
 
 
 class EnrollmentCreate(BaseModel):
-    course_id: uuid.UUID
+    course_id: Union[int, str, uuid.UUID]
     national_id: str
     phone_number: str
     email: str
@@ -21,7 +21,7 @@ class EnrollmentCreate(BaseModel):
 
 
 class BatchEnrollmentCreate(BaseModel):
-    course_ids: List[uuid.UUID]
+    course_ids: List[Union[int, str, uuid.UUID]]
     national_id: str
     phone_number: str
     email: str

@@ -37,13 +37,26 @@ def enrollment_options():
     ]
 
 
+def resolve_course_query(c_id):
+    if isinstance(c_id, int):
+        return select(Course).where(Course.course_number == c_id)
+    if isinstance(c_id, str):
+        if c_id.isdigit():
+            return select(Course).where(Course.course_number == int(c_id))
+        try:
+            return select(Course).where(Course.id == uuid.UUID(c_id))
+        except ValueError:
+            return select(Course).where(Course.slug == c_id)
+    return select(Course).where(Course.id == c_id)
+
+
 @router.post("/", response_model=EnrollmentRead, status_code=status.HTTP_201_CREATED)
 async def create_enrollment(
     enroll_in: EnrollmentCreate,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """ثبت‌نام مستقیم در یک دوره با ایجاد یا بازیابی حساب کاربری"""
-    stmt_course = select(Course).where(Course.id == enroll_in.course_id)
+    stmt_course = resolve_course_query(enroll_in.course_id)
     res_course = await db.execute(stmt_course)
     course = res_course.scalars().first()
     if not course:
@@ -132,6 +145,10 @@ async def create_batch_enrollments(
             detail="حداقل یک دوره باید برای ثبت‌نام انتخاب شود.",
         )
 
+    stmt_user = select(User).where(User.national_id == batch_in.national_id)
+    res_user = await db.execute(stmt_user)
+    user = res_user.scalars().first()
+
     raw_pw = batch_in.password or batch_in.national_id
     if not user:
         user = User(
@@ -163,7 +180,7 @@ async def create_batch_enrollments(
 
     enrollment_ids = []
     for c_id in batch_in.course_ids:
-        stmt_course = select(Course).where(Course.id == c_id)
+        stmt_course = resolve_course_query(c_id)
         res_course = await db.execute(stmt_course)
         course = res_course.scalars().first()
         if not course:
