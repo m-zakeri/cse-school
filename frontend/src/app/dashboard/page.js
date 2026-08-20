@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { getCurrentUser, clearAuthSession } from "@/lib/auth";
@@ -17,24 +16,25 @@ import {
   AwardIcon,
   ExternalLinkIcon,
   UserPlusIcon,
+  ChevronLeftIcon,
 } from "@/components/Icons";
 
 export default function StudentDashboard() {
-  const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
   const [user, setUser] = useState(null);
   const [userEnrollments, setUserEnrollments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsMounted(true);
     const currentUser = getCurrentUser();
     if (!currentUser) {
-      router.push("/login");
+      setIsLoading(false);
       return;
     }
 
     setUser(currentUser);
 
-    // Fetch user enrollments from backend
     async function loadData() {
       try {
         if (currentUser.national_id) {
@@ -49,7 +49,6 @@ export default function StudentDashboard() {
         console.log("Using default registered course view:", err);
       }
 
-      // Default mock enrolled courses for display
       setUserEnrollments([
         {
           id: "mock-1",
@@ -70,14 +69,56 @@ export default function StudentDashboard() {
     }
 
     loadData();
-  }, [router]);
+  }, []);
 
   const handleLogout = () => {
     clearAuthSession();
-    router.push("/login");
+    setUser(null);
   };
 
-  if (!user) return null;
+  if (!isMounted) {
+    return (
+      <MainLayout>
+        <div className="py-20 text-center text-xs text-slate-500">
+          در حال بارگذاری پرتال...
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <MainLayout>
+        <div className="max-w-md mx-auto py-12 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-100">
+            <AcademicCapIcon className="w-7 h-7" />
+          </div>
+          <h1 className="text-xl font-extrabold text-slate-900 mb-2">
+            ورود به پرتال دانشجو
+          </h1>
+          <p className="text-xs text-slate-600 mb-6">
+            برای مشاهده برنامه کلاسی و دوره‌های خود، ابتدا وارد شوید یا ثبت‌نام کنید.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <Link
+              href="/login"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-sm text-xs flex items-center justify-center gap-2"
+            >
+              <span>ورود به حساب کاربری</span>
+              <ChevronLeftIcon className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/register"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 px-6 rounded-xl text-xs"
+            >
+              پیش‌ثبت‌نام در دوره‌ها
+            </Link>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
