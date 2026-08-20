@@ -1,69 +1,178 @@
 # سامانه آموزش‌های تخصصی دانشکده مهندسی کامپیوتر دانشگاه امیرکبیر
 ## معماری و نقشه راه سرویس بک‌اند (Backend Architecture & Roadmap)
 
-این دایرکتوری شامل سرویس بک‌اند بر پایه **FastAPI (Python)**، پایگاه داده رابطه‌ای **PostgreSQL** و لایه کش و صف **Redis** می‌باشد.
+سرویس بک‌اند بر پایه فریم‌ورک پرسرعت و آسنکرون **FastAPI (Python 3.11+)**، پایگاه داده رابطه‌ای **PostgreSQL 16** و لایه کش و صف **Redis 7** طراحی شده است.
 
 ---
 
-### ساختار درختی بک‌اند (Backend Structure)
+### ساختار درختی بک‌اند (Backend Directory Layout)
 
 ```
 backend/
-├── Dockerfile
-├── Dockerfile.dev
-├── requirements.txt
-├── README.md
+├── Dockerfile                  # داکر ایمیج چندمرحله‌ای بهینه برای پروداکشن
+├── Dockerfile.dev              # داکر ایمیج سبک با فعال‌سازی Hot-Reload
+├── requirements.txt            # پکیج‌ها و وابستگی‌های پایتون
+├── README.md                   # داکیومنت جامع معماری بک‌اند
 └── app/
-    ├── main.py                     # نقطه شروع اپلیکیشن FastAPI و تعریف میان‌افزارها
+    ├── main.py                 # نقطه ورود اپلیکیشن FastAPI، میدل‌ورهای CORS و هندلرهای خطا
     ├── core/
-    │   ├── config.py               # تنظیمات متغیرهای محیطی با Pydantic Settings
-    │   ├── database.py             # اتصال آسنکرون به PostgreSQL (AsyncEngine & Session)
-    │   ├── redis.py                # اتصال به کش و صف Redis
-    │   └── security.py             # توابع Hashing رمز عبور و تولید JWT Token
-    ├── models/                     # مدل‌های ORM دیتابیس (SQLAlchemy 2.0)
-    │   ├── user.py                 # مدل کاربران، نقش‌ها و مدارک
-    │   ├── course.py               # مدل دوره‌ها، ترم‌ها، اساتید و سرفصل‌ها
-    │   ├── enrollment.py           # مدل ثبت‌نام‌ها و وضعیت فراگیران
-    │   ├── payment.py              # مدل پرداخت‌ها و تراکنش‌های بانکی
-    │   └── certificate.py          # مدل گواهی‌های دوزبانه و کدهای اعتبارسنجی
-    ├── schemas/                    # اسکیماهای اعتبارسنجی داده (Pydantic v2 DTOs)
+    │   ├── config.py           # مدیریت متغیرهای محیطی با Pydantic Settings
+    │   ├── database.py         # موتور ارتباطی آسنکرون به PostgreSQL (AsyncEngine & AsyncSession)
+    │   ├── redis.py            # اتصال و توابع هلپر کار با Redis (Caching & Rate Limiting)
+    │   └── security.py         # الگوریتم‌های Bcrypt/Argon2 برای هش پسورد و تولید توکن JWT
+    ├── models/                 # تعاریف جداول و مدل‌های ORM دیتابیس (SQLAlchemy 2.0)
+    │   ├── user.py             # مدل کاربران، نقش‌ها و سطوح دسترسی
+    │   ├── course.py           # مدل دوره‌ها، ترم‌ها، پیش‌نیازها و سرفصل‌ها
+    │   ├── enrollment.py       # مدل ثبت‌نام‌ها، نمرات و وضعیت‌های تراکنش
+    │   ├── payment.py          # مدل پرداخت‌های بانکی و لاگ تراکنش‌ها
+    │   └── certificate.py      # مدل گواهی‌های صادرشده و کدهای رهگیری
+    ├── schemas/                # اسکیماهای اعتبارسنجی ورودی/خروجی (Pydantic v2 DTOs)
     │   ├── user.py
     │   ├── course.py
     │   ├── enrollment.py
     │   ├── payment.py
     │   └── certificate.py
     ├── api/
-    │   └── v1/                     # نسخه‌بندی API (RESTful Endpoints)
-    │       ├── api.py              # تجمیع روترها
+    │   └── v1/                 # نگارش اول API های RESTful
+    │       ├── api.py          # تجمیع روترهای ماژولار
     │       ├── endpoints/
-    │       │   ├── auth.py         # احراز هویت (OTP / Password / JWT)
-    │       │   ├── users.py        # مدیریت پروفایل و کاربران
-    │       │   ├── courses.py      # مدیریت و مشاهده دوره‌ها
-    │       │   ├── enrollments.py  # فرآیند ثبت‌نام در دوره‌ها
-    │       │   ├── payments.py     # اتصال به درگاه پرداخت و تایید تراکنش
-    │       │   └── certificates.py # استعلام و صدور گواهینامه‌ها
-    └── services/                   # لایه لاجیک تجاری و ادغام با سرویس‌های جانبی
-        ├── sms_service.py          # ارسال پیامک تایید و اعلان‌ها (کاوه نگار / SMS.ir)
-        ├── payment_gateway.py      # اتصال به شاپرک / زرین‌پال
-        └── certificate_generator.py # تولید فایل PDF گواهی با QR Code
+    │       │   ├── auth.py     # لاگین با رمز/OTP، ارسال کد تایید و رفرش توکن
+    │       │   ├── users.py    # مدیریت پروفایل فراگیر و آپلود مدارک
+    │       │   ├── courses.py  # دریافت لیست، فیلترها و جزئیات دوره‌ها
+    │       │   ├── enrollments.py # فرایند ثبت‌نام و اعمال کدهای تخفیف
+    │       │   ├── payments.py # اتصال به درگاه پرداخت شاپرک/زرین‌پال و کال‌بک
+    │       │   └── certificates.py # استعلام عمومی اصالت مدرک با شناسه و QR Code
+    └── services/               # لایه منطق تجاری (Business Logic)
+        ├── sms_service.py      # ادغام با سرویس‌های پیامک (کاوه‌نگار / SMS.ir)
+        ├── payment_gateway.py  # کلاینت ارتباط با درگاه بانکی
+        └── certificate_generator.py # تولید خودکار فایل PDF گواهی با ReportLab و QRCode
 ```
 
 ---
 
-### مدل داده و روابط دیتابیس (ERD Summary)
+### دیاگرام مدل داده و روابط دیتابیس (Database ERD)
 
-1. **User (کاربر)**
-   - `id`, `national_id` (کد ملی), `phone_number`, `email`, `hashed_password`, `full_name`, `education_level`, `field_of_study`, `role` (`STUDENT`, `INSTRUCTOR`, `ADMIN`), `is_verified`
-2. **Term (ترم آموزشی)**
-   - `id`, `title` (مثلاً پاییز ۱۴۰۴), `start_date`, `end_date`, `registration_start`, `registration_end`, `is_active`
-3. **Course (دوره آموزشی)**
-   - `id`, `term_id`, `instructor_id`, `title_fa`, `title_en`, `slug`, `units`, `level`, `type`, `price`, `capacity`, `prerequisites`, `corequisites`, `duration`, `delivery_method`, `image_url`
-4. **Enrollment (ثبت‌نام دوره)**
-   - `id`, `user_id`, `course_id`, `term_id`, `status` (`PENDING_PAYMENT`, `ENROLLED`, `REJECTED`, `COMPLETED`), `final_grade`, `created_at`
-5. **Payment (پرداخت و تراکنش)**
-   - `id`, `enrollment_id`, `user_id`, `amount`, `discount_amount`, `gateway`, `tracking_code`, `reference_id`, `status` (`PENDING`, `SUCCESSFUL`, `FAILED`), `paid_at`
-6. **Certificate (گواهینامه)**
-   - `id`, `enrollment_id`, `serial_number`, `qr_code_url`, `pdf_url`, `issued_at`
+```mermaid
+erDiagram
+    USERS ||--o{ ENROLLMENTS : registers
+    USERS ||--o{ PAYMENTS : pays
+    TERMS ||--o{ COURSES : contains
+    TERMS ||--o{ ENROLLMENTS : holds
+    COURSES ||--o{ ENROLLMENTS : includes
+    ENROLLMENTS ||--o| PAYMENTS : requires
+    ENROLLMENTS ||--o| CERTIFICATES : generates
+
+    USERS {
+        uuid id PK
+        string national_id UK "کد ملی"
+        string phone_number UK "شماره همراه"
+        string email UK
+        string full_name "نام و نام خانوادگی"
+        string role "STUDENT | INSTRUCTOR | ADMIN"
+        boolean is_verified
+        datetime created_at
+    }
+
+    TERMS {
+        uuid id PK
+        string title "مثلاً پاییز ۱۴۰۴"
+        date registration_start
+        date registration_end
+        date start_date
+        date end_date
+        boolean is_active
+    }
+
+    COURSES {
+        uuid id PK
+        uuid term_id FK
+        uuid instructor_id FK
+        string title_fa
+        string title_en
+        string slug UK
+        int units
+        string level "کارشناسی | کارشناسی ارشد"
+        decimal price
+        int capacity
+        string delivery_method "آنلاین | حضوری | ترکیبی"
+        string image_url
+    }
+
+    ENROLLMENTS {
+        uuid id PK
+        uuid user_id FK
+        uuid course_id FK
+        uuid term_id FK
+        string status "PENDING_PAYMENT | ENROLLED | COMPLETED | CANCELLED"
+        decimal final_grade
+        datetime created_at
+    }
+
+    PAYMENTS {
+        uuid id PK
+        uuid enrollment_id FK
+        uuid user_id FK
+        decimal amount
+        decimal discount_amount
+        string gateway "ZARINPAL | SADAD | BEHPARDAKHT"
+        string tracking_code
+        string reference_id
+        string status "PENDING | SUCCESSFUL | FAILED"
+        datetime paid_at
+    }
+
+    CERTIFICATES {
+        uuid id PK
+        uuid enrollment_id FK
+        string serial_number UK
+        string pdf_url
+        string qr_code_url
+        datetime issued_at
+    }
+```
+
+---
+
+### اندپوینت‌های کلیدی API (Core REST API Endpoints)
+
+| ماژول | متد و مسیر | دسترسی | توضیحات |
+|---|---|---|---|
+| **Auth** | `POST /api/v1/auth/otp/send` | عمومی | ارسال کد تایید یک‌بار مصرف به موبایل فراگیر |
+| **Auth** | `POST /api/v1/auth/otp/verify` | عمومی | تایید کد OTP و صدور JWT Access/Refresh Token |
+| **Auth** | `POST /api/v1/auth/login` | عمومی | لاگین سنتی با ایمیل/کدملی و رمز عبور |
+| **Courses** | `GET /api/v1/courses` | عمومی | لیست دوره‌های فعال همراه با فیلتر دسته‌بندی و استاد |
+| **Courses** | `GET /api/v1/courses/{id}` | عمومی | دریافت اطلاعات کامل سرفصل و پیش‌نیازهای یک دوره |
+| **Enrollments** | `POST /api/v1/enrollments/apply` | دانشجو | ثبت درخواست اولیه برای شرکت در دوره |
+| **Payments** | `POST /api/v1/payments/request` | دانشجو | درخواست ایجاد شناسه پرداخت و هدایت به درگاه |
+| **Payments** | `GET /api/v1/payments/verify` | عمومی | کال‌بک درگاه بانکی برای نهایی‌سازی خرید |
+| **Certificates** | `GET /api/v1/certificates/verify/{serial}` | عمومی | استعلام اصالت گواهینامه دوره با شماره سریال یا اسکن کیوآرکد |
+| **Admin** | `GET /api/v1/admin/reports` | مدیر | گزارش‌های آماری ثبت‌نام‌ها، درآمد و لیست شرکت‌کنندگان |
+
+---
+
+### متغیرهای محیطی (Environment Variables)
+
+یک فایل `.env` در پوشه `backend/` ایجاد نمایید:
+
+```env
+PROJECT_NAME="CE School - Amirkabir University of Technology"
+ENVIRONMENT="development"
+API_V1_STR="/api/v1"
+
+# پایگاه داده PostgreSQL
+DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/ce_school_db"
+
+# کش Redis
+REDIS_URL="redis://localhost:6379/0"
+
+# کلید رمزنگاری JWT
+SECRET_KEY="your-super-secret-key-at-least-32-chars-long"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# آدرس‌های مجاز CORS
+CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+```
 
 ---
 
@@ -75,7 +184,8 @@ cd backend
 
 # ۲. ایجاد محیط مجازی پایتون
 python -m venv venv
-venv\Scripts\activate   # ویندوز
+venv\Scripts\activate   # در ویندوز
+# source venv/bin/activate # در لینوکس / مک
 
 # ۳. نصب پکیج‌ها
 pip install -r requirements.txt
@@ -83,4 +193,6 @@ pip install -r requirements.txt
 # ۴. اجرای سرور توسعه
 uvicorn app.main:app --reload --port 8000
 ```
-داکیومنت تعاملی Swagger به صورت خودکار در آدرس `http://localhost:8000/docs` در دسترس خواهد بود.
+
+- **مستندات تعاملی Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **مستندات ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
