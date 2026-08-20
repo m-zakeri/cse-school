@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# سامانه جامع آموزش‌های تخصصی دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر
+## Amirkabir University of Technology - CE School Platform
 
-## Getting Started
+سامانه یکپارچه آموزش‌های تخصصی، دوره‌های مهارت‌محور، میکرومسترها و صدور گواهینامه‌های رسمی دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### ساختار کلی مخزن (Repository Architecture)
+
+```
+ce-school/
+├── frontend/                 # کلاینت و رابط کاربری (Next.js 16 + Tailwind CSS)
+│   ├── src/                  # صفحات، کامپوننت‌ها و استایل‌ها
+│   ├── public/               # فونت‌های یکان‌بخ، تصاویر و دارایی‌های استاتیک
+│   ├── Dockerfile
+│   └── package.json
+├── backend/                  # سرویس بک‌اند (FastAPI + PostgreSQL + Redis)
+│   ├── app/                  # روترها، مدل‌ها، اسکیماها و سرویس‌ها
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── README.md             # نقشه راه و جزئیات معماری بک‌اند
+├── docker-compose.yml        # ارکستراسیون سرویس‌ها در محیط پروداکشن
+├── docker-compose.dev.yml    # ارکستراسیون سرویس‌ها در محیط توسعه
+└── README.md
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+### راه‌اندازی سریع با داکر (Quick Start with Docker)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+#### محیط توسعه (Development Mode):
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+- **فرانت‌اند:** `http://localhost:3000`
+- **بک‌اند و Swagger:** `http://localhost:8000/docs`
+- **پایگاه داده پستگرس:** پورت `5432`
+- **کش ردیس:** پورت `6379`
 
-## Learn More
+#### محیط پروداکشن (Production Mode):
+```bash
+docker compose up -d --build
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### راه‌اندازی دستی فرانت‌اند (Frontend Manual Setup)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### راه‌اندازی دستی بک‌اند (Backend Manual Setup)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```

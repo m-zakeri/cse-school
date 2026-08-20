@@ -1,22 +1,75 @@
 version: '3.8'
 
 services:
-  nextjs-dev:
+  frontend-dev:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
     volumes:
-      - .:/app
+      - ./frontend:/app
       - /app/node_modules
       - /app/.next
     environment:
       - NODE_ENV=development
       - NEXT_TELEMETRY_DISABLED=1
       - WATCHPACK_POLLING=true
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
     restart: unless-stopped
-    container_name: ce-school-dev
+    container_name: ce-school-frontend-dev
     stdin_open: true
     tty: true
+
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres-dev:5432/ce_school_db
+      - REDIS_URL=redis://redis-dev:6379/0
+      - ENVIRONMENT=development
+      - RELOAD=true
+    restart: unless-stopped
+    container_name: ce-school-backend-dev
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+      redis-dev:
+        condition: service_started
+
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: ce-school-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ce_school_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-dev:
+    image: redis:7-alpine
+    container_name: ce-school-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
 
