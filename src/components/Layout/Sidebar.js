@@ -17,18 +17,10 @@ const Sidebar = () => {
       title: "اساتید دوره",
       href: "/instructors",
     },
-    // {
-    //   title: "ثبت‌نام",
-    //   href: "/register",
-    // },
-    // {
-    //   title: "تقویم آموزشی",
-    //   href: "/calendar",
-    // },
-    // {
-    //   title: "بسته‌های میکرومستر",
-    //   href: "/micromaster",
-    // },
+    {
+      title: "سرفصل دوره‌ها",
+      href: "/syllabus",
+    },
     {
       title: "اطلاعات تکمیلی",
       href: "/info",
@@ -79,9 +71,6 @@ const Sidebar = () => {
           {/* Logo and Title */}
           <div className="mb-8">
             <div className="flex items-center mb-4">
-              {/* <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mr-3">
-                <span className="text-blue-600 font-bold text-xl">آ</span>
-              </div> */}
               <div>
                 <h1 className="text-xl font-bold">مدرسه پاییزه امیرکبیر</h1>
                 <p className="text-blue-200 text-sm">دانشکده مهندسی کامپیوتر</p>
@@ -113,37 +102,6 @@ const Sidebar = () => {
               );
             })}
           </nav>
-
-          {/* Search */}
-          {/* <div className="mt-8">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="جستجو..."
-                className="w-full bg-blue-700 text-white placeholder-blue-300 px-4 py-2 rounded-lg border border-blue-500 focus:outline-none focus:border-blue-300"
-              />
-              <svg
-                className="absolute left-3 top-2.5 w-5 h-5 text-blue-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
-          </div> */}
-
-          {/* User Tools */}
-          {/* <div className="mt-6">
-            <button className="w-full bg-blue-700 hover:bg-blue-800 text-white py-2 px-4 rounded-lg transition-colors">
-              ورود به سامانه
-            </button>
-          </div> */}
         </div>
       </div>
 
