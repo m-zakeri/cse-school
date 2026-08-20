@@ -9,6 +9,8 @@ Client application for the Amirkabir University of Technology Computer Engineeri
 - Next.js 16 and Turbopack: Fast compilation and server-side components (RSC).
 - Responsive RTL Layout: Native Right-to-Left design optimized for Persian typography and all screen sizes.
 - Typography: Full range of Yekan Bakh FaNum font weights with Persian numerical glyphs.
+- Standalone SVG Icon System: Clean, accessible, lightweight inline SVG icons with zero external icon package overhead.
+- Comprehensive Course Syllabi: Detailed week-by-week topics, prerequisites, software toolsets, grading schemes, and academic textbook references.
 - Mobile Navigation: Slide-over drawer menu for responsive mobile browsing.
 - SEO and Performance: Optimized asset delivery via Next.js image and local font loaders.
 
@@ -40,6 +42,7 @@ frontend/
 │   │   ├── register/             # Registration instructions and application form
 │   │   └── micromaster/          # Micro-master bundled programs
 │   ├── components/               # Reusable React components
+│   │   ├── Icons.js              # Dedicated accessible SVG icon system
 │   │   ├── CourseCard.js         # Card component for course listings
 │   │   ├── InstructorCard.js     # Faculty profile card
 │   │   └── Layout/               # Structural layout components
@@ -47,7 +50,8 @@ frontend/
 │   │       ├── Sidebar.js        # Responsive sidebar with active state tracking
 │   │       └── MainLayout.js     # Unified page layout wrapper
 │   └── data/
-│       └── sampleData.js         # Static seed data for courses and instructors
+│       ├── sampleData.js         # Static seed data for courses and instructors
+│       └── coursesFullDetails.js # Comprehensive syllabi and course specifications
 ├── Dockerfile                    # Multi-stage production container build (Standalone)
 ├── Dockerfile.dev                # Development container with volume mounts
 ├── next.config.mjs               # Next.js configuration

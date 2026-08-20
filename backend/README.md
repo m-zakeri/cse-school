@@ -13,18 +13,21 @@ backend/
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # Architecture and API documentation
 └── app/
-    ├── main.py                 # FastAPI application factory and middleware configuration
+    ├── main.py                 # FastAPI application factory, lifespan, and middleware configuration
     ├── core/
     │   ├── config.py           # Environment variables management via Pydantic Settings
     │   ├── database.py         # Asynchronous SQLAlchemy engine and session dependency
+    │   ├── init_db.py          # Automatic table initialization and master dataset seeder
     │   ├── redis.py            # Redis client for caching and rate limiting
     │   └── security.py         # Password hashing and JWT token operations
     ├── models/                 # SQLAlchemy 2.0 ORM database models
-    │   ├── user.py             # Users, roles, and credentials
-    │   ├── course.py           # Courses, terms, instructors, and syllabi
-    │   ├── enrollment.py       # Registrations, statuses, and academic records
-    │   ├── payment.py          # Payment transactions and gateway tracking
-    │   └── certificate.py      # Issued certifications and verification keys
+    │   ├── user.py             # Users, roles, credentials, and academic background
+    │   ├── term.py             # Academic terms, timelines, and active status
+    │   ├── instructor.py       # Faculty members, bios, and university profiles
+    │   ├── course.py           # Courses and detailed syllabus topics
+    │   ├── enrollment.py       # Student registrations, tracking codes, and grades
+    │   ├── payment.py          # Transactions, payment gateways, and reference IDs
+    │   └── certificate.py      # Issued official university certificates
     ├── schemas/                # Pydantic v2 validation models (DTOs)
     │   ├── user.py
     │   ├── course.py
@@ -34,17 +37,16 @@ backend/
     ├── api/
     │   └── v1/                 # API Version 1 REST routes
     │       ├── api.py          # Modular route aggregator
-    │       ├── endpoints/
-    │       │   ├── auth.py     # Authentication (OTP, password, token refresh)
-    │       │   ├── users.py    # Profile management and document uploads
-    │       │   ├── courses.py  # Course catalog, search, and detail views
-    │       │   ├── enrollments.py # Course application and discount code validation
-    │       │   ├── payments.py # Payment gateway integration and verification callbacks
-    │       │   └── certificates.py # Public certificate verification and download
+    │       └── endpoints/
+    │           ├── auth.py     # Authentication (Registration, login, JWT)
+    │           ├── courses.py  # Course catalog and detailed syllabus views
+    │           ├── enrollments.py # Course application, batch registration, and tracking
+    │           ├── payments.py # Payment requests and gateway verification
+    │           └── certificates.py # Certificate verification by serial number
     └── services/               # Business logic layer
         ├── sms_service.py      # SMS provider integration (Kavenegar / SMS.ir)
         ├── payment_gateway.py  # Banking gateway adapter
-        └── certificate_generator.py # Automated PDF certificate generation with QR codes
+        └── certificate_generator.py # PDF certificate generation with QR verification
 ```
 
 ---
@@ -57,16 +59,22 @@ erDiagram
     USERS ||--o{ PAYMENTS : pays
     TERMS ||--o{ COURSES : contains
     TERMS ||--o{ ENROLLMENTS : holds
+    INSTRUCTORS ||--o{ COURSES : teaches
+    COURSES ||--o{ SYLLABUS_TOPICS : has
     COURSES ||--o{ ENROLLMENTS : includes
     ENROLLMENTS ||--o| PAYMENTS : requires
     ENROLLMENTS ||--o| CERTIFICATES : generates
 
     USERS {
         uuid id PK
-        string national_id UK
-        string phone_number UK
+        string national_id UK "10-digit national ID"
+        string phone_number UK "Mobile number"
         string email UK
         string full_name
+        string hashed_password
+        string education_level
+        string university
+        string field_of_study
         string role "STUDENT | INSTRUCTOR | ADMIN"
         boolean is_verified
         datetime created_at
@@ -75,6 +83,7 @@ erDiagram
     TERMS {
         uuid id PK
         string title
+        string code UK "1404-1"
         date registration_start
         date registration_end
         date start_date
@@ -82,19 +91,45 @@ erDiagram
         boolean is_active
     }
 
+    INSTRUCTORS {
+        uuid id PK
+        string name
+        string position
+        string department
+        string specialization
+        string profile_link
+    }
+
     COURSES {
         uuid id PK
+        int course_number UK "1 to 7"
         uuid term_id FK
         uuid instructor_id FK
         string title_fa
         string title_en
         string slug UK
-        int units
-        string level "BSc | MSc"
+        string field
+        string type
+        string units
+        string level
         decimal price
         int capacity
-        string delivery_method "ONLINE | IN_PERSON | HYBRID"
-        string image_url
+        string delivery_method
+        text description
+        jsonb objectives
+        jsonb target_audience
+        jsonb software_tools
+        jsonb grading_info
+        jsonb references
+    }
+
+    SYLLABUS_TOPICS {
+        uuid id PK
+        uuid course_id FK
+        int order_index
+        string title
+        text description
+        int sessions_count
     }
 
     ENROLLMENTS {
@@ -102,7 +137,8 @@ erDiagram
         uuid user_id FK
         uuid course_id FK
         uuid term_id FK
-        string status "PENDING_PAYMENT | ENROLLED | COMPLETED | CANCELLED"
+        string status "PENDING_PAYMENT | REGISTERED | CANCELLED | COMPLETED"
+        string tracking_code UK "AUT-1404-XXXXXX"
         decimal final_grade
         datetime created_at
     }
@@ -113,8 +149,8 @@ erDiagram
         uuid user_id FK
         decimal amount
         decimal discount_amount
-        string gateway "ZARINPAL | SADAD | BEHPARDAKHT"
-        string tracking_code
+        string gateway "ZARINPAL | SADAD | BEHPARDAKHT | MOCK"
+        string tracking_code UK
         string reference_id
         string status "PENDING | SUCCESSFUL | FAILED"
         datetime paid_at
@@ -123,6 +159,7 @@ erDiagram
     CERTIFICATES {
         uuid id PK
         uuid enrollment_id FK
+        uuid user_id FK
         string serial_number UK
         string pdf_url
         string qr_code_url
@@ -136,16 +173,26 @@ erDiagram
 
 | Module | Method & Path | Access | Description |
 |---|---|---|---|
-| Auth | `POST /api/v1/auth/otp/send` | Public | Send one-time verification code via SMS |
-| Auth | `POST /api/v1/auth/otp/verify` | Public | Verify OTP and return JWT Access/Refresh tokens |
-| Auth | `POST /api/v1/auth/login` | Public | Standard credential login (Email/National ID + Password) |
-| Courses | `GET /api/v1/courses` | Public | List active courses with filtering and search |
-| Courses | `GET /api/v1/courses/{id}` | Public | Detailed course information, syllabus, and prerequisites |
-| Enrollments | `POST /api/v1/enrollments/apply` | Student | Submit initial application for course enrollment |
-| Payments | `POST /api/v1/payments/request` | Student | Initialize payment gateway transaction |
-| Payments | `GET /api/v1/payments/verify` | Public | Banking gateway callback handler |
-| Certificates | `GET /api/v1/certificates/verify/{serial}` | Public | Public certificate authenticity verification |
-| Admin | `GET /api/v1/admin/reports` | Admin | Enrollment, revenue, and student performance metrics |
+| Auth | `POST /api/v1/auth/register` | Public | Register student with validation of National ID and mobile |
+| Auth | `POST /api/v1/auth/login` | Public | Authenticate via National ID/Email + password |
+| Courses | `GET /api/v1/courses/` | Public | List all active courses with instructor metadata |
+| Courses | `GET /api/v1/courses/{identifier}` | Public | Get comprehensive course specifications, topics, and references |
+| Enrollments | `POST /api/v1/enrollments/` | Public / Student | Register for a single course with auto user provisioning |
+| Enrollments | `POST /api/v1/enrollments/batch` | Public / Student | Batch registration for multiple courses from admission portal |
+| Enrollments | `GET /api/v1/enrollments/tracking/{code}` | Public | Query enrollment status by unique tracking code |
+| Payments | `POST /api/v1/payments/request` | Student | Initialize payment transaction and apply discount codes |
+| Payments | `POST /api/v1/payments/verify` | Public | Payment gateway verification callback handler |
+| Certificates | `GET /api/v1/certificates/verify/{serial}` | Public | Verify official certificate authenticity by serial number |
+
+---
+
+## Automatic Database Seeding
+
+On application startup, the database lifespan handler automatically checks and creates all tables, and seeds:
+- Active term (`ترم پاییز ۱۴۰۴`)
+- 4 Department faculty members
+- All 7 academic courses with full session-by-session syllabus topics
+- Default administrator account (`admin@aut.ac.ir`)
 
 ---
 
