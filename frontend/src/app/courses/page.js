@@ -23,7 +23,6 @@ export default function Courses() {
       try {
         const backendCourses = await apiGetCourses();
         if (backendCourses && backendCourses.length > 0) {
-          // Format backend courses
           const formatted = backendCourses.map((c) => ({
             id: c.course_number || c.id,
             title: c.title_fa,
@@ -34,8 +33,12 @@ export default function Courses() {
             capacity: c.capacity,
             courseLevel: c.course_level,
             price: Number(c.price),
-            description: c.field,
-            image: `/photos/course-${((c.course_number - 1) % 6) + 1}.png`,
+            description: c.description || c.field,
+            image: `/photos/coursepic/${
+              c.course_number === 1 ? "ml.jpg" :
+              c.course_number === 2 ? "ST.jpg" :
+              c.course_number === 3 ? "AP.jpg" : "SE.jpg"
+            }`,
           }));
           setCoursesList(formatted.filter((course) => !hiddenCourseIds.includes(course.id)));
           return;
@@ -57,7 +60,7 @@ export default function Courses() {
           courseLevel: c.course_level || "متوسط",
           price: Number(c.price),
           description: c.description || c.field,
-          image: "/photos/course-1.png",
+          image: "/photos/coursepic/ml.jpg",
         }));
         const combined = [
           ...dynamicFormatted,

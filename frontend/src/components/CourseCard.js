@@ -34,14 +34,32 @@ function getCourseIcon(key) {
   }
 }
 
+function getCourseImage(course) {
+  if (course?.image && (course.image.endsWith(".jpg") || course.image.endsWith(".png"))) {
+    return course.image;
+  }
+  const idNum = Number(course?.id) || 1;
+  const imageMap = {
+    1: "/photos/coursepic/ml.jpg",
+    2: "/photos/coursepic/ST.jpg",
+    3: "/photos/coursepic/AP.jpg",
+    4: "/photos/coursepic/SE.jpg",
+    5: "/photos/coursepic/SE.jpg",
+    6: "/photos/coursepic/SE.jpg",
+    7: "/photos/coursepic/ml.jpg",
+  };
+  return imageMap[idNum] || "/photos/coursepic/ml.jpg";
+}
+
 const CourseCard = ({ course }) => {
+  const imageSrc = getCourseImage(course);
   return (
     <div className="group bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all duration-300 flex flex-col overflow-hidden">
       {/* Course Image Container */}
       <div className="h-52 relative overflow-hidden bg-slate-100">
         <Image
-          src={course.image}
-          alt={course.title}
+          src={imageSrc}
+          alt={course?.title || "دوره تخصصی"}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-500"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
