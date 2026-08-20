@@ -3,6 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import {
+  BookOpenIcon,
+  UsersIcon,
+  DocumentTextIcon,
+  CalendarIcon,
+  LayersIcon,
+  UserPlusIcon,
+  ShieldCheckIcon,
+  InfoIcon,
+  BuildingIcon,
+  PhoneIcon,
+  MenuIcon,
+  XMarkIcon,
+  AcademicCapIcon,
+} from "../Icons";
 
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,103 +27,145 @@ const Sidebar = () => {
     {
       title: "دوره‌های آموزشی",
       href: "/courses",
+      icon: BookOpenIcon,
     },
     {
       title: "اساتید دوره",
       href: "/instructors",
+      icon: UsersIcon,
     },
     {
       title: "سرفصل دوره‌ها",
       href: "/syllabus",
+      icon: DocumentTextIcon,
+    },
+    {
+      title: "تقویم آموزشی",
+      href: "/calendar",
+      icon: CalendarIcon,
+    },
+    {
+      title: "بسته‌های میکرومستر",
+      href: "/micromaster",
+      icon: LayersIcon,
+    },
+    {
+      title: "ثبت‌نام",
+      href: "/register",
+      icon: UserPlusIcon,
     },
     {
       title: "اطلاعات تکمیلی",
       href: "/info",
+      icon: InfoIcon,
     },
     {
       title: "شرایط و مقررات",
       href: "/terms",
+      icon: ShieldCheckIcon,
     },
     {
-      title: "درباره",
+      title: "درباره مدرسه",
       href: "/about",
+      icon: BuildingIcon,
     },
     {
       title: "تماس با ما",
       href: "/contact",
+      icon: PhoneIcon,
     },
   ];
 
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Mobile Toggle Button */}
       <button
-        className="lg:hidden fixed top-4 right-4 z-50 bg-blue-600 text-white p-2 rounded-lg"
+        aria-label="باز کردن منو"
+        className="lg:hidden fixed top-3.5 right-3.5 z-50 bg-slate-900 text-white p-2.5 rounded-xl shadow-lg border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 6h16M4 12h16M4 18h16"
-          />
-        </svg>
+        {isOpen ? <XMarkIcon className="w-5 h-5" /> : <MenuIcon className="w-5 h-5" />}
       </button>
 
-      {/* Sidebar */}
-      <div
-        className={`fixed top-0 right-0 h-full w-64 bg-blue-600 text-white z-40 transform transition-transform duration-300 ${
+      {/* Sidebar Container */}
+      <aside
+        className={`fixed top-0 right-0 h-screen w-72 bg-slate-900 border-l border-slate-800/80 text-slate-100 z-40 flex flex-col justify-between transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="p-6">
-          {/* Logo and Title */}
-          <div className="mb-8">
-            <div className="flex items-center mb-4">
-              <div>
-                <h1 className="text-xl font-bold">مدرسه پاییزه امیرکبیر</h1>
-                <p className="text-blue-200 text-sm">دانشکده مهندسی کامپیوتر</p>
-                <p className="text-blue-200 text-sm">دانشگاه امیرکبیر</p>
+        <div className="flex flex-col h-full overflow-y-auto custom-scrollbar p-5">
+          {/* Header Brand */}
+          <div className="pb-6 mb-4 border-b border-slate-800/80">
+            <Link
+              href="/courses"
+              className="flex items-center gap-3.5 group"
+              onClick={() => setIsOpen(false)}
+            >
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-md shadow-blue-500/20 text-white group-hover:scale-105 transition-transform">
+                <AcademicCapIcon className="w-6 h-6" />
               </div>
-            </div>
+              <div className="flex flex-col">
+                <span className="text-base font-bold text-white group-hover:text-blue-400 transition-colors">
+                  مدرسه تخصصی CE
+                </span>
+                <span className="text-xs text-slate-400 font-normal">
+                  دانشکده مهندسی کامپیوتر
+                </span>
+                <span className="text-[11px] text-blue-400 font-medium">
+                  دانشگاه صنعتی امیرکبیر
+                </span>
+              </div>
+            </Link>
           </div>
 
-          {/* Navigation Menu */}
-          <nav className="space-y-2">
+          {/* Navigation Items */}
+          <nav className="space-y-1.5 flex-1">
             {menuItems.map((item, index) => {
-              const isActive = pathname === item.href;
+              const Icon = item.icon;
+              const isActive =
+                pathname === item.href ||
+                (item.href === "/courses" && pathname.startsWith("/courses"));
               return (
                 <Link
                   key={index}
                   href={item.href}
-                  className={`flex items-center p-3 rounded-lg transition-colors relative ${
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 ${
                     isActive
-                      ? "bg-blue-700 text-white"
-                      : "hover:bg-blue-700 text-blue-100"
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/25 font-semibold"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
                   }`}
                   onClick={() => setIsOpen(false)}
                 >
-                  {isActive && (
-                    <div className="absolute right-0 top-0 bottom-0 w-1 bg-white rounded-r"></div>
-                  )}
-                  <span className="mr-3">{item.title}</span>
+                  <Icon
+                    className={`w-4 h-4 shrink-0 transition-colors ${
+                      isActive ? "text-white" : "text-slate-400 group-hover:text-slate-200"
+                    }`}
+                  />
+                  <span>{item.title}</span>
                 </Link>
               );
             })}
           </nav>
-        </div>
-      </div>
 
-      {/* Overlay for mobile */}
+          {/* Sidebar Footer Badge */}
+          <div className="pt-4 mt-4 border-t border-slate-800/80">
+            <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/50 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] text-slate-400">ترم فعال سامانه</p>
+                <p className="text-xs font-bold text-slate-200">پاییز ۱۴۰۴</p>
+              </div>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                ثبت‌نام فعال
+              </span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Overlay for mobile backdrop */}
       {isOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          className="lg:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-30 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
       )}

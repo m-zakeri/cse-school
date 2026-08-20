@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -12,20 +12,15 @@
   --font-mono: var(--font-yekan-bakh);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-yekan-bakh), Arial, Helvetica, sans-serif;
+  font-family: var(--font-yekan-bakh), system-ui, -apple-system, sans-serif;
   direction: rtl;
   text-align: right;
   font-feature-settings: "numr";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* RTL specific styles */
@@ -34,39 +29,49 @@ body {
   text-align: right;
 }
 
-/* Custom scrollbar for RTL */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: #cbd5e1;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #94a3b8;
 }
 
-/* Persian number formatting */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+/* Persian numbers feature */
 .persian-numbers {
   font-feature-settings: "numr";
 }
 
-/* Custom focus styles for RTL */
-button:focus,
-input:focus,
-textarea:focus,
-select:focus {
-  outline: 2px solid #3b82f6;
+/* Focus styles for accessibility */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid #2563eb;
   outline-offset: 2px;
-}
-
-/* Smooth transitions */
-* {
-  transition: all 0.2s ease-in-out;
 }

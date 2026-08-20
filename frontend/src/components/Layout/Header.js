@@ -2,39 +2,40 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronLeftIcon, AcademicCapIcon, UserPlusIcon } from "../Icons";
 
 const Header = () => {
   const pathname = usePathname();
 
-  // تعریف مسیرها و نام‌های مربوطه
   const getBreadcrumb = () => {
     const routes = {
       "/": "خانه",
       "/courses": "دوره‌های آموزشی",
       "/courses/1": "یادگیری ماشین",
-      "/courses/2": "آزمون و تضمین کیفیت نرم‌افزار",
-      "/courses/3": "برنامه نویسی شی گرا (جاوا)",
+      "/courses/2": "آزمون و کیفیت نرم‌افزار",
+      "/courses/3": "برنامه‌نویسی شی‌گرا (جاوا)",
       "/courses/4": "مهندسی نرم‌افزار",
+      "/courses/5": "کارآفرینی",
+      "/courses/6": "اصول و الگوها در مهندسی نرم‌افزار",
+      "/courses/7": "اصول رایانش ابری",
       "/instructors": "اساتید دوره",
-      "/register": "ثبت‌نام",
+      "/register": "ثبت‌نام در دوره‌ها",
       "/calendar": "تقویم آموزشی",
       "/micromaster": "بسته‌های میکرومستر",
       "/syllabus": "سرفصل دوره‌ها",
       "/info": "اطلاعات تکمیلی",
       "/terms": "شرایط و مقررات",
-      "/about": "درباره",
+      "/about": "درباره مدرسه",
       "/contact": "تماس با ما",
     };
 
-    // اگر مسیر دقیقاً در routes موجود باشد
     if (routes[pathname]) {
       return {
         currentPage: routes[pathname],
-        showHome: pathname !== "/",
+        showHome: pathname !== "/courses",
       };
     }
 
-    // اگر مسیر dynamic باشد (مثل /courses/[id])
     if (pathname.startsWith("/courses/")) {
       const courseId = pathname.split("/")[2];
       if (courseId && routes[`/courses/${courseId}`]) {
@@ -45,7 +46,6 @@ const Header = () => {
           parentPath: "/courses",
         };
       }
-      // اگر دوره جدیدی اضافه شده باشد که در routes نیست
       return {
         currentPage: "جزئیات دوره",
         showHome: true,
@@ -54,7 +54,6 @@ const Header = () => {
       };
     }
 
-    // پیش‌فرض
     return {
       currentPage: "دوره‌های آموزشی",
       showHome: true,
@@ -64,42 +63,48 @@ const Header = () => {
   const breadcrumb = getBreadcrumb();
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-4">
-          {/* Breadcrumb */}
-          <nav className="text-sm text-gray-600">
-            {breadcrumb.showHome && (
-              <>
-                <Link href="/courses" className="hover:text-blue-600">
-                  خانه
-                </Link>
-                <span className="mx-2">»</span>
-              </>
-            )}
-            {breadcrumb.parentPage && (
-              <>
-                <Link
-                  href={breadcrumb.parentPath}
-                  className="hover:text-blue-600"
-                >
-                  {breadcrumb.parentPage}
-                </Link>
-                <span className="mx-2">»</span>
-              </>
-            )}
-            <span className="text-gray-900">{breadcrumb.currentPage}</span>
-          </nav>
+    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+      <div className="px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
+        {/* Breadcrumb Navigation */}
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500 overflow-x-auto">
+          {breadcrumb.showHome && (
+            <>
+              <Link
+                href="/courses"
+                className="hover:text-blue-600 font-medium transition-colors shrink-0"
+              >
+                خانه
+              </Link>
+              <ChevronLeftIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </>
+          )}
 
-          {/* University Logo */}
-          <div className="flex items-center">
-            <div className="text-right">
-              <h2 className="text-lg font-bold text-gray-900">
-                دانشگاه امیرکبیر
-              </h2>
-              <p className="text-sm text-gray-600">دانشکده مهندسی کامپیوتر</p>
-            </div>
-          </div>
+          {breadcrumb.parentPage && (
+            <>
+              <Link
+                href={breadcrumb.parentPath}
+                className="hover:text-blue-600 font-medium transition-colors shrink-0"
+              >
+                {breadcrumb.parentPage}
+              </Link>
+              <ChevronLeftIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </>
+          )}
+
+          <span className="text-slate-900 font-semibold truncate shrink-0">
+            {breadcrumb.currentPage}
+          </span>
+        </nav>
+
+        {/* Header Right Actions */}
+        <div className="flex items-center gap-3 shrink-0">
+          <Link
+            href="/register"
+            className="hidden sm:inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3.5 rounded-xl shadow-xs hover:shadow transition-all"
+          >
+            <UserPlusIcon className="w-3.5 h-3.5" />
+            <span>ثبت‌نام آنلاین</span>
+          </Link>
         </div>
       </div>
     </header>
