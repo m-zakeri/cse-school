@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 const InstructorCard = ({ instructor }) => {
   return (
@@ -16,7 +17,12 @@ const InstructorCard = ({ instructor }) => {
 
       {/* Instructor Info */}
       <h3 className="text-lg font-bold text-gray-900 mb-2">
-        {instructor.name}
+        <Link
+          href={instructor.profileLink || `/instructors/${instructor.id}`}
+          className="text-blue-600 hover:underline cursor-pointer"
+        >
+          {instructor.name}
+        </Link>
       </h3>
       <p className="text-gray-600 text-sm mb-1">{instructor.position}</p>
       <p className="text-blue-600 text-xs font-medium">

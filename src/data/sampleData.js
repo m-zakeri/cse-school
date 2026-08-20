@@ -80,6 +80,67 @@ export const courses = [
       "2 ماه و نیم (10 هفته) – 8 هفته کلاس (24 ساعت – 16 جلسه) – 1 هفته جبرانی – 1 هفته ارزیابی",
     deliveryMethod: "ترکیبی (کلاس‌های مجازی + ارزیابی پایانی حضوری)",
   },
+  {
+    id: 5,
+    title: "کارآفرینی",
+    instructor: "مرتضی ذاکری",
+    icon: "🚀",
+    image: "/photos/coursepic/AP.jpg",
+    description: "آشنایی با اصول و مفاهیم ایجاد و رشد کسب‌وکارهای نوآورانه",
+    englishTitle: "Entrepreneurship",
+    field: "مهندسي کامپيوتر – نرم‌افزار",
+    type: "اختیاری",
+    units: "3 واحد",
+    level: "کارشناسی",
+    prerequisites: "-",
+    corequisites: "مهندسی نرم‌افزار",
+    prerequisiteTopics: "مفاهیم پایه مهندسی نرم‌افزار و برنامه‌سازی",
+    courseLevel: "مبتدی و متوسط",
+    duration:
+      "2 ماه و نیم (10 هفته) – 8 هفته کلاس (24 ساعت – 16 جلسه) – 1 هفته جبرانی – 1 هفته ارزیابی",
+    deliveryMethod: "ترکیبی (کلاس‌های مجازی + ارزیابی پایانی حضوری)",
+  },
+  {
+    id: 6,
+    title: "اصول و الگوها در مهندسی نرم‌افزار",
+    instructor: "مرتضی ذاکری",
+    icon: "📐",
+    image: "/photos/coursepic/SE.jpg",
+    description: "آشنایی با اصول طراحی و الگوهای پرکاربرد در مهندسی نرم‌افزار",
+    englishTitle: "Principles and Patterns in Software Engineering",
+    field: "مهندسي کامپيوتر – نرم‌افزار",
+    type: "اختصاصی",
+    units: "3 واحد",
+    level: "کارشناسی ارشد",
+    prerequisites: "برنامه‌نویسی شی‌گرا",
+    corequisites: "مهندسی نرم‌افزار",
+    prerequisiteTopics:
+      "مفاهیم پایه مهندسی نرم‌افزار و برنامه‌سازی شی‎گرا به ویژه در زبان جاوا",
+    courseLevel: "متوسط و پیشرفته",
+    duration:
+      "2 ماه و نیم (10 هفته) – 8 هفته کلاس (24 ساعت – 16 جلسه) – 1 هفته جبرانی – 1 هفته ارزیابی",
+    deliveryMethod: "ترکیبی (کلاس‌های مجازی + ارزیابی پایانی حضوری)",
+  },
+  {
+    id: 7,
+    title: "اصول رایانش ابری",
+    instructor: "سید احمد جوادی",
+    icon: "☁️",
+    image: "/photos/coursepic/ST.jpg",
+    description: "مبانی رایانش ابری، مجازی‌سازی و کار با زیرساخت‌های ابری",
+    englishTitle: "Principles of Cloud Computing",
+    field: "مهندسي کامپيوتر – معماری سیستم‌های کامپیوتر",
+    type: "اختصاصی",
+    units: "3 واحد",
+    level: "کارشناسی",
+    prerequisites: "سیستم‌های عامل، شبکه‌های کامپیوتری",
+    corequisites: "",
+    prerequisiteTopics: "مفاهیم پایه سیستم‌های عامل و شبکه‌های کامپیوتری",
+    courseLevel: "مبتدی و متوسط",
+    duration:
+      "2 ماه و نیم (10 هفته) – 8 هفته کلاس (24 ساعت – 16 جلسه) – 1 هفته جبرانی – 1 هفته ارزیابی",
+    deliveryMethod: "ترکیبی (کلاس‌های مجازی + ارزیابی پایانی حضوری)",
+  },
 ];
 
 // Sample data for instructors
@@ -90,6 +151,8 @@ export const instructors = [
     position: "عضو هیئت علمی دانشگاه امیرکبیر",
     specialization: "برنامه‌سازی و الگوریتم",
     image: "/photos/teachers/Nazerfard.jpg",
+    profileLink:
+      "https://aut.ac.ir/cv/2384/%D8%A7%D8%AD%D8%B3%D8%A7%D9%86-%D9%86%D8%A7%D8%B8%D8%B1-%D9%81%D8%B1%D8%AF?slc_lang=fa&&cv=2384&mod=scv",
   },
   {
     id: 2,
@@ -97,6 +160,7 @@ export const instructors = [
     position: "عضو هیئت علمی دانشگاه امیرکبیر",
     specialization: "هوش مصنوعی",
     image: "/photos/teachers/Taromirad.jpg",
+    profileLink: "https://scholar.google.com/citations?user=vpyZSPgAAAAJ&hl=en",
   },
   {
     id: 3,
@@ -104,44 +168,18 @@ export const instructors = [
     position: "عضو هیئت علمی دانشگاه امیرکبیر",
     specialization: "پایگاه داده",
     image: "/photos/teachers/Zakeri.jpg",
+    profileLink:
+      "https://aut.ac.ir/cv/26642/%D9%85%D8%B1%D8%AA%D8%B6%DB%8C-%D8%B0%D8%A7%DA%A9%D8%B1%DB%8C",
   },
-  // {
-  //   id: 4,
-  //   name: "دکتر مریم کریمی",
-  //   position: "عضو هیئت علمی دانشگاه امیرکبیر",
-  //   specialization: "امنیت شبکه",
-  // },
+  {
+    id: 4,
+    name: "دکتر احمد جوادی",
+    position: "عضو هیئت علمی دانشگاه امیرکبیر",
+    specialization: "امنیت شبکه",
+    image: "/photos/teachers/Javadi.jpg",
+    profileLink:
+      "https://aut.ac.ir/cv/21291/%D8%B3%D9%8A%D8%AF%D8%A7%D8%AD%D9%85%D8%AF%20%D8%AC%D9%88%D8%A7%D8%AF%DB%8C",
+  },
 ];
 
-// Sample data for micromaster packages
-// export const micromasterPackages = [
-//   {
-//     id: 1,
-//     title: "برنامه‌سازی و الگوریتم",
-//     description: "شامل برنامه‌سازی پایتون، طراحی الگوریتم‌ها، و ساختارهای داده",
-//     courses: ["برنامه‌سازی پایتون", "ساختارهای داده", "الگوریتم‌های پیشرفته"],
-//     color: "from-blue-500 to-blue-600",
-//   },
-//   {
-//     id: 2,
-//     title: "هوش مصنوعی",
-//     description: "شامل یادگیری ماشین، یادگیری عمیق، و پردازش زبان طبیعی",
-//     courses: ["یادگیری ماشین", "یادگیری عمیق", "پردازش زبان طبیعی"],
-//     color: "from-purple-500 to-purple-600",
-//   },
-//   {
-//     id: 3,
-//     title: "مهندسی نرم‌افزار",
-//     description: "شامل طراحی پایگاه داده، مهندسی نرم‌افزار، و تست نرم‌افزار",
-//     courses: ["طراحی پایگاه داده", "مهندسی نرم‌افزار", "تست نرم‌افزار"],
-//     color: "from-green-500 to-green-600",
-//   },
-//   {
-//     id: 4,
-//     title: "علم داده",
-//     description: "شامل تحلیل داده، آمار، و تجسم داده‌ها",
-//     courses: ["تحلیل داده", "آمار کاربردی", "تجسم داده‌ها"],
-//     color: "from-orange-500 to-orange-600",
-//   },
-// ];
 export const micromasterPackages = [];
