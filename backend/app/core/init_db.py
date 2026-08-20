@@ -1,3 +1,4 @@
+import os
 import logging
 from datetime import date
 from sqlalchemy import select
@@ -501,7 +502,8 @@ async def init_db(session: AsyncSession) -> None:
                 session.add(topic)
 
     # 5. Check and Seed Initial Superadmin / Admin User
-    admin_email = "admin@aut.ac.ir"
+    admin_email = os.getenv("FIRST_SUPERUSER_EMAIL", "admin@aut.ac.ir")
+    admin_password = os.getenv("FIRST_SUPERUSER_PASSWORD", "Admin@AUT1404!")
     res = await session.execute(select(User).where(User.email == admin_email))
     admin_user = res.scalars().first()
     if not admin_user:
@@ -510,7 +512,7 @@ async def init_db(session: AsyncSession) -> None:
             phone_number="09120000000",
             email=admin_email,
             full_name="مدیر سامانه آموزش‌های تخصصی",
-            hashed_password=get_password_hash("Admin@AUT1404!"),
+            hashed_password=get_password_hash(admin_password),
             education_level="دکتری تخصصی",
             university="دانشگاه صنعتی امیرکبیر",
             field_of_study="مهندسی کامپیوتر",
