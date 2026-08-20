@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
@@ -15,8 +15,28 @@ import {
   ChevronLeftIcon,
 } from "@/components/Icons";
 
+import { getLocalDynamicCourses } from "@/lib/api";
+
 export default function Register() {
-  const visibleCourses = courses.filter((c) => c.id !== 5);
+  const [coursesList, setCoursesList] = useState(courses.filter((c) => c.id !== 5));
+
+  useEffect(() => {
+    const dynamic = getLocalDynamicCourses();
+    if (dynamic.length > 0) {
+      const dynamicFormatted = dynamic.map((c) => ({
+        id: c.course_number || c.id,
+        title: c.title_fa || c.title,
+        instructor: c.instructor_name || c.instructor,
+        units: c.units,
+        level: c.level,
+      }));
+      const combined = [
+        ...dynamicFormatted,
+        ...courses.filter((c) => c.id !== 5 && !dynamicFormatted.some((d) => d.id === c.id)),
+      ];
+      setCoursesList(combined);
+    }
+  }, []);
 
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [formData, setFormData] = useState({
@@ -232,7 +252,7 @@ export default function Register() {
                   انتخاب دوره‌(های) مورد تقاضا:
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {visibleCourses.map((course) => {
+                  {coursesList.map((course) => {
                     const isSelected = selectedCourses.includes(course.id);
                     return (
                       <label

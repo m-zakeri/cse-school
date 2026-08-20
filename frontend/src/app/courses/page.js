@@ -1,6 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import MainLayout from "@/components/Layout/MainLayout";
 import CourseCard from "@/components/CourseCard";
-import { courses } from "@/data/sampleData";
+import { courses as initialCourses } from "@/data/sampleData";
+import { getLocalDynamicCourses, apiGetCourses } from "@/lib/api";
 import {
   AcademicCapIcon,
   AwardIcon,
@@ -10,10 +14,65 @@ import {
 
 export default function Courses() {
   const hiddenCourseIds = [5];
-
-  const visibleCourses = courses.filter(
-    (course) => !hiddenCourseIds.includes(course.id)
+  const [coursesList, setCoursesList] = useState(
+    initialCourses.filter((course) => !hiddenCourseIds.includes(course.id))
   );
+
+  useEffect(() => {
+    async function loadAllCourses() {
+      try {
+        const backendCourses = await apiGetCourses();
+        if (backendCourses && backendCourses.length > 0) {
+          // Format backend courses
+          const formatted = backendCourses.map((c) => ({
+            id: c.course_number || c.id,
+            title: c.title_fa,
+            englishTitle: c.title_en,
+            instructor: c.instructor?.name || "عضو هیئت علمی",
+            units: c.units,
+            level: c.level,
+            capacity: c.capacity,
+            courseLevel: c.course_level,
+            price: Number(c.price),
+            description: c.field,
+            image: `/photos/course-${((c.course_number - 1) % 6) + 1}.png`,
+          }));
+          setCoursesList(formatted.filter((course) => !hiddenCourseIds.includes(course.id)));
+          return;
+        }
+      } catch {
+        // Use local dynamic fallback
+      }
+
+      const dynamic = getLocalDynamicCourses();
+      if (dynamic.length > 0) {
+        const dynamicFormatted = dynamic.map((c) => ({
+          id: c.course_number || c.id,
+          title: c.title_fa || c.title,
+          englishTitle: c.title_en || c.englishTitle,
+          instructor: c.instructor_name || c.instructor,
+          units: c.units,
+          level: c.level,
+          capacity: c.capacity,
+          courseLevel: c.course_level || "متوسط",
+          price: Number(c.price),
+          description: c.description || c.field,
+          image: "/photos/course-1.png",
+        }));
+        const combined = [
+          ...dynamicFormatted,
+          ...initialCourses.filter(
+            (c) =>
+              !hiddenCourseIds.includes(c.id) &&
+              !dynamicFormatted.some((d) => d.id === c.id)
+          ),
+        ];
+        setCoursesList(combined);
+      }
+    }
+
+    loadAllCourses();
+  }, []);
 
   return (
     <MainLayout>
@@ -41,7 +100,7 @@ export default function Courses() {
               </div>
               <div>
                 <p className="text-xs text-slate-400">دوره‌های تخصصی</p>
-                <p className="text-sm font-bold text-white">۶ عنوان دوره فعال</p>
+                <p className="text-sm font-bold text-white">{coursesList.length} عنوان دوره فعال</p>
               </div>
             </div>
 
@@ -86,7 +145,7 @@ export default function Courses() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visibleCourses.map((course) => (
+          {coursesList.map((course) => (
             <CourseCard key={course.id} course={course} />
           ))}
         </div>
