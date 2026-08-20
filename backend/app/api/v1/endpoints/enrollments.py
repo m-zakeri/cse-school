@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.models.course import Course
+from app.models.instructor import Instructor
 from app.models.term import Term
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.schemas.enrollment import EnrollmentCreate, BatchEnrollmentCreate, EnrollmentRead
@@ -26,6 +27,13 @@ def generate_tracking_code() -> str:
     """تولید کد رهگیری منحصر‌به‌فرد استاندارد دانشگاه امیرکبیر"""
     random_hex = secrets.token_hex(3).upper()
     return f"AUT-1404-{random_hex}"
+
+
+def enrollment_options():
+    return [
+        selectinload(Enrollment.course).selectinload(Course.instructor),
+        selectinload(Enrollment.user),
+    ]
 
 
 @router.post("/", response_model=EnrollmentRead, status_code=status.HTTP_201_CREATED)
@@ -91,7 +99,7 @@ async def create_enrollment(
         user_id=user.id,
         course_id=course.id,
         term_id=course.term_id,
-        status=EnrollmentStatus.REGISTERED,  # Mark as registered directly upon admission form submission
+        status=EnrollmentStatus.REGISTERED,
         tracking_code=generate_tracking_code(),
     )
     db.add(enrollment)
@@ -101,10 +109,7 @@ async def create_enrollment(
     stmt_reload = (
         select(Enrollment)
         .where(Enrollment.id == enrollment.id)
-        .options(
-            selectinload(Enrollment.course),
-            selectinload(Enrollment.user),
-        )
+        .options(*enrollment_options())
     )
     res_reload = await db.execute(stmt_reload)
     return res_reload.scalars().first()
@@ -185,10 +190,7 @@ async def create_batch_enrollments(
     stmt_all = (
         select(Enrollment)
         .where(Enrollment.id.in_(enrollment_ids))
-        .options(
-            selectinload(Enrollment.course),
-            selectinload(Enrollment.user),
-        )
+        .options(*enrollment_options())
     )
     res_all = await db.execute(stmt_all)
     return res_all.scalars().all()
@@ -204,10 +206,7 @@ async def get_user_enrollments(
         select(Enrollment)
         .join(User, Enrollment.user_id == User.id)
         .where(User.national_id == national_id)
-        .options(
-            selectinload(Enrollment.course),
-            selectinload(Enrollment.user),
-        )
+        .options(*enrollment_options())
         .order_by(desc(Enrollment.created_at))
     )
     res = await db.execute(stmt)
@@ -221,10 +220,7 @@ async def get_all_enrollments_admin(
     """دریافت تمامی ثبت‌نام‌ها برای پنل مدیریت آموزش"""
     stmt = (
         select(Enrollment)
-        .options(
-            selectinload(Enrollment.course),
-            selectinload(Enrollment.user),
-        )
+        .options(*enrollment_options())
         .order_by(desc(Enrollment.created_at))
     )
     res = await db.execute(stmt)
@@ -241,10 +237,7 @@ async def update_enrollment_status(
     stmt = (
         select(Enrollment)
         .where(Enrollment.id == enrollment_id)
-        .options(
-            selectinload(Enrollment.course),
-            selectinload(Enrollment.user),
-        )
+        .options(*enrollment_options())
     )
     res = await db.execute(stmt)
     enr = res.scalars().first()
