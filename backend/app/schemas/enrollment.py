@@ -14,6 +14,7 @@ class EnrollmentCreate(BaseModel):
     phone_number: str
     email: str
     full_name: str
+    password: Optional[str] = None
     education_level: Optional[str] = None
     university: Optional[str] = None
     field_of_study: Optional[str] = None
@@ -25,6 +26,7 @@ class BatchEnrollmentCreate(BaseModel):
     phone_number: str
     email: str
     full_name: str
+    password: Optional[str] = None
     education_level: Optional[str] = None
     university: Optional[str] = None
     field_of_study: Optional[str] = None

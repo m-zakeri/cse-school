@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
-import { apiCreateBatchEnrollment } from "@/lib/api";
+import { apiCreateBatchEnrollment, getLocalDynamicCourses } from "@/lib/api";
 import { saveAuthSession } from "@/lib/auth";
 import {
   UserPlusIcon,
@@ -13,9 +13,8 @@ import {
   ShieldCheckIcon,
   AcademicCapIcon,
   ChevronLeftIcon,
+  LockClosedIcon,
 } from "@/components/Icons";
-
-import { getLocalDynamicCourses } from "@/lib/api";
 
 export default function Register() {
   const [coursesList, setCoursesList] = useState(courses.filter((c) => c.id !== 5));
@@ -44,6 +43,7 @@ export default function Register() {
     nationalId: "",
     phoneNumber: "",
     email: "",
+    password: "",
     educationLevel: "bachelor_student",
     university: "",
     agreeTerms: false,
@@ -83,12 +83,15 @@ export default function Register() {
     setIsLoading(true);
     setErrorMessage("");
 
+    const effectivePassword = formData.password.trim() || formData.nationalId.trim();
+
     const payload = {
       course_ids: selectedCourses,
       national_id: formData.nationalId.trim(),
       phone_number: formData.phoneNumber.trim(),
       email: formData.email.trim(),
       full_name: formData.fullName.trim(),
+      password: effectivePassword,
       education_level: formData.educationLevel,
       university: formData.university.trim(),
       field_of_study: "مهندسی کامپیوتر",
@@ -99,12 +102,12 @@ export default function Register() {
       const primaryTracking =
         enrollments[0]?.tracking_code || `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      // Save user session
+      // Save user session directly so they are immediately logged in
       const userObj = {
-        national_id: formData.nationalId,
-        phone_number: formData.phoneNumber,
-        email: formData.email,
-        full_name: formData.fullName,
+        national_id: formData.nationalId.trim(),
+        phone_number: formData.phoneNumber.trim(),
+        email: formData.email.trim(),
+        full_name: formData.fullName.trim(),
         role: "STUDENT",
       };
       saveAuthSession("student-session", userObj);
@@ -114,15 +117,16 @@ export default function Register() {
         coursesCount: selectedCourses.length,
         studentName: formData.fullName,
         nationalId: formData.nationalId,
+        passwordHint: formData.password.trim() ? "کلمه عبور انتخابی شما" : `کد ملی شما (${formData.nationalId})`,
       });
-    } catch (err) {
-      // Graceful offline fallback simulation
+    } catch {
+      // Offline fallback simulation
       const fallbackTracking = `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
       const userObj = {
-        national_id: formData.nationalId,
-        phone_number: formData.phoneNumber,
-        email: formData.email,
-        full_name: formData.fullName,
+        national_id: formData.nationalId.trim(),
+        phone_number: formData.phoneNumber.trim(),
+        email: formData.email.trim(),
+        full_name: formData.fullName.trim(),
         role: "STUDENT",
       };
       saveAuthSession("student-session", userObj);
@@ -132,6 +136,7 @@ export default function Register() {
         coursesCount: selectedCourses.length,
         studentName: formData.fullName,
         nationalId: formData.nationalId,
+        passwordHint: formData.password.trim() ? "کلمه عبور انتخابی شما" : `کد ملی شما (${formData.nationalId})`,
       });
     } finally {
       setIsLoading(false);
@@ -161,11 +166,11 @@ export default function Register() {
             <CheckCircleIcon className="w-8 h-8" />
           </div>
 
-          <h2 className="text-xl font-extrabold text-slate-900 mb-2">
-            ثبت‌نام اولیه با موفقیت ثبت گردید
+          <h2 className="text-xl font-extrabold text-slate-900 mb-1">
+            ثبت‌نام شما با موفقیت تکمیل شد
           </h2>
           <p className="text-xs text-slate-600 mb-6">
-            پرونده آموزشی شما در سامانه دانشگاه صنعتی امیرکبیر ایجاد شد.
+            حساب کاربری و پرونده آموزشی شما در سامانه دانشگاه ایجاد گردید.
           </p>
 
           <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200/80 mb-6 text-right space-y-3 text-xs">
@@ -180,11 +185,15 @@ export default function Register() {
               <span className="font-bold text-slate-800">{successData.studentName}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-500">کد ملی:</span>
-              <span className="font-bold text-slate-800">{successData.nationalId}</span>
+              <span className="text-slate-500">شناسه کاربری (نام کاربری جهت ورود):</span>
+              <span className="font-bold font-mono text-slate-900">{successData.nationalId}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-500">تعداد دوره‌های انتخابی:</span>
+              <span className="text-slate-500">کلمه عبور ورود به سامانه:</span>
+              <span className="font-bold text-emerald-700">{successData.passwordHint}</span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+              <span className="text-slate-500">تعداد دوره‌های ثبت‌شده:</span>
               <span className="font-bold text-slate-800">{successData.coursesCount} دوره</span>
             </div>
           </div>
@@ -194,7 +203,7 @@ export default function Register() {
               href="/dashboard"
               className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-3 px-6 rounded-xl transition-all shadow-sm"
             >
-              <span>ورود به پرتال دانشجو</span>
+              <span>ورود مستقیم به پرتال دانشجو و کلاس‌ها</span>
               <ChevronLeftIcon className="w-4 h-4" />
             </Link>
             <button
@@ -286,7 +295,7 @@ export default function Register() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-4 border-t border-slate-100">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    نام و نام خانوادگی
+                    نام و نام خانوادگی *
                   </label>
                   <input
                     type="text"
@@ -301,7 +310,7 @@ export default function Register() {
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    کد ملی (جهت صدور گواهینامه)
+                    کد ملی (نام کاربری شما جهت ورود) *
                   </label>
                   <input
                     type="text"
@@ -309,14 +318,14 @@ export default function Register() {
                     name="nationalId"
                     value={formData.nationalId}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
                     placeholder="ده رقم بدون خط تیره"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    شماره تلفن همراه (جهت دریافت کد پیامکی)
+                    شماره تلفن همراه (جهت دریافت اطلاعیه‌ها) *
                   </label>
                   <input
                     type="tel"
@@ -324,14 +333,14 @@ export default function Register() {
                     name="phoneNumber"
                     value={formData.phoneNumber}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
                     placeholder="۰۹۱۲..."
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    پست الکترونیکی (ایمیل)
+                    پست الکترونیکی (ایمیل) *
                   </label>
                   <input
                     type="email"
@@ -346,21 +355,16 @@ export default function Register() {
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    آخرین مقطع تحصیلی
+                    کلمه عبور دلخواه برای ورود به سامانه
                   </label>
-                  <select
-                    name="educationLevel"
-                    value={formData.educationLevel}
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
                     onChange={handleInputChange}
                     className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  >
-                    <option value="bachelor_student">دانشجوی کارشناسی</option>
-                    <option value="bachelor">کارشناسی (فارغ‌التحصیل)</option>
-                    <option value="master_student">دانشجوی کارشناسی ارشد</option>
-                    <option value="master">کارشناسی ارشد</option>
-                    <option value="phd">دکتری تخصصی</option>
-                    <option value="other">سایر</option>
-                  </select>
+                    placeholder="در صورت خالی ماندن، کد ملی کلمه عبور خواهد بود"
+                  />
                 </div>
 
                 <div>
@@ -375,6 +379,25 @@ export default function Register() {
                     className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="مثال: دانشگاه صنعتی امیرکبیر"
                   />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                    مقطع تحصیلی
+                  </label>
+                  <select
+                    name="educationLevel"
+                    value={formData.educationLevel}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  >
+                    <option value="bachelor_student">دانشجوی کارشناسی</option>
+                    <option value="bachelor">کارشناسی (فارغ‌التحصیل)</option>
+                    <option value="master_student">دانشجوی کارشناسی ارشد</option>
+                    <option value="master">کارشناسی ارشد</option>
+                    <option value="phd">دکتری تخصصی</option>
+                    <option value="other">سایر</option>
+                  </select>
                 </div>
               </div>
 

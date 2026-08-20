@@ -32,9 +32,9 @@ export default function LoginPage() {
       saveAuthSession(res.access_token, res.user);
 
       if (res.user.role === "ADMIN") {
-        router.push("/admin");
+        window.location.href = "/admin";
       } else {
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (err) {
       // Direct local Admin fallback check if backend server is not running
@@ -51,7 +51,7 @@ export default function LoginPage() {
           role: "ADMIN",
         };
         saveAuthSession("mock-admin-token", mockAdmin);
-        router.push("/admin");
+        window.location.href = "/admin";
         return;
       }
 
@@ -66,7 +66,7 @@ export default function LoginPage() {
           role: "STUDENT",
         };
         saveAuthSession("mock-student-token", mockStudent);
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
         return;
       }
 

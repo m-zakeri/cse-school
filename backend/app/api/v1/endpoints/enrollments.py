@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.security import get_password_hash
 from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.models.course import Course
@@ -55,12 +56,14 @@ async def create_enrollment(
     res_user = await db.execute(stmt_user)
     user = res_user.scalars().first()
 
+    raw_pw = enroll_in.password or enroll_in.national_id
     if not user:
         user = User(
             national_id=enroll_in.national_id,
             phone_number=enroll_in.phone_number,
             email=enroll_in.email,
             full_name=enroll_in.full_name,
+            hashed_password=get_password_hash(raw_pw),
             education_level=enroll_in.education_level,
             university=enroll_in.university,
             field_of_study=enroll_in.field_of_study,
@@ -73,6 +76,8 @@ async def create_enrollment(
         user.full_name = enroll_in.full_name
         user.phone_number = enroll_in.phone_number
         user.email = enroll_in.email
+        if enroll_in.password:
+            user.hashed_password = get_password_hash(enroll_in.password)
         if enroll_in.education_level:
             user.education_level = enroll_in.education_level
         if enroll_in.university:
@@ -127,16 +132,14 @@ async def create_batch_enrollments(
             detail="حداقل یک دوره باید برای ثبت‌نام انتخاب شود.",
         )
 
-    stmt_user = select(User).where(User.national_id == batch_in.national_id)
-    res_user = await db.execute(stmt_user)
-    user = res_user.scalars().first()
-
+    raw_pw = batch_in.password or batch_in.national_id
     if not user:
         user = User(
             national_id=batch_in.national_id,
             phone_number=batch_in.phone_number,
             email=batch_in.email,
             full_name=batch_in.full_name,
+            hashed_password=get_password_hash(raw_pw),
             education_level=batch_in.education_level,
             university=batch_in.university,
             field_of_study=batch_in.field_of_study,
@@ -149,6 +152,8 @@ async def create_batch_enrollments(
         user.full_name = batch_in.full_name
         user.phone_number = batch_in.phone_number
         user.email = batch_in.email
+        if batch_in.password:
+            user.hashed_password = get_password_hash(batch_in.password)
         if batch_in.education_level:
             user.education_level = batch_in.education_level
         if batch_in.university:
@@ -254,3 +259,26 @@ async def update_enrollment_status(
     await db.commit()
     await db.refresh(enr)
     return enr
+
+
+@router.get("/user/{national_id}", response_model=List[EnrollmentRead])
+async def get_user_enrollments(
+    national_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """دریافت لیست تمامی دوره‌های ثبت‌نامی یک دانشجو بر اساس کد ملی"""
+    stmt_user = select(User).where(User.national_id == national_id)
+    res_user = await db.execute(stmt_user)
+    user = res_user.scalars().first()
+    if not user:
+        return []
+
+    stmt = (
+        select(Enrollment)
+        .where(Enrollment.user_id == user.id)
+        .options(*enrollment_options())
+        .order_by(desc(Enrollment.created_at))
+    )
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
