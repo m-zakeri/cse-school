@@ -19,6 +19,20 @@ import {
   ChevronLeftIcon,
 } from "@/components/Icons";
 
+function getInstructorName(course) {
+  if (!course) return "عضو هیئت علمی";
+  if (course.instructor_name && typeof course.instructor_name === "string") {
+    return course.instructor_name;
+  }
+  if (course.instructor) {
+    if (typeof course.instructor === "string") return course.instructor;
+    if (typeof course.instructor === "object" && course.instructor.name) {
+      return course.instructor.name;
+    }
+  }
+  return "عضو هیئت علمی دانشگاه صنعتی امیرکبیر";
+}
+
 export default function StudentDashboard() {
   const [isMounted, setIsMounted] = useState(false);
   const [user, setUser] = useState(null);
@@ -213,6 +227,7 @@ export default function StudentDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {userEnrollments.map((enr, idx) => {
             const courseData = enr.course || courses[idx % courses.length];
+            const instructorName = getInstructorName(courseData);
             return (
               <div
                 key={enr.id || idx}
@@ -229,11 +244,11 @@ export default function StudentDashboard() {
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900">
-                    {courseData.title_fa || courseData.title}
+                    {courseData?.title_fa || courseData?.title}
                   </h3>
 
                   <p className="text-xs text-slate-500">
-                    مدرس: {courseData.instructor_name || courseData.instructor} • {courseData.units}
+                    مدرس: {instructorName} • {courseData?.units || "۳ واحد"}
                   </p>
 
                   <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 space-y-1 border border-slate-100">
@@ -253,7 +268,7 @@ export default function StudentDashboard() {
                     <span>ورود به کلاس آنلاین</span>
                   </a>
                   <Link
-                    href={`/courses/${courseData.course_number || courseData.id || 1}`}
+                    href={`/courses/${courseData?.course_number || courseData?.id || 1}`}
                     className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2.5 px-3 rounded-xl transition-all"
                   >
                     سرفصل‌ها

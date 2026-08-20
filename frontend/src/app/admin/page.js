@@ -27,6 +27,20 @@ import {
   ChevronLeftIcon,
 } from "@/components/Icons";
 
+function getInstructorName(course) {
+  if (!course) return "عضو هیئت علمی";
+  if (course.instructor_name && typeof course.instructor_name === "string") {
+    return course.instructor_name;
+  }
+  if (course.instructor) {
+    if (typeof course.instructor === "string") return course.instructor;
+    if (typeof course.instructor === "object" && course.instructor.name) {
+      return course.instructor.name;
+    }
+  }
+  return "عضو هیئت علمی دانشگاه صنعتی امیرکبیر";
+}
+
 export default function AdminDashboard() {
   const [isMounted, setIsMounted] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
@@ -537,7 +551,7 @@ export default function AdminDashboard() {
                     <td className="py-3.5 px-4 text-slate-800">
                       {enr.course?.title_fa || enr.course?.title}
                       <span className="block text-[11px] text-slate-400">
-                        {enr.course?.instructor_name || enr.course?.instructor}
+                        {getInstructorName(enr.course)}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-blue-700 dir-ltr text-right">
@@ -613,7 +627,7 @@ export default function AdminDashboard() {
                     {c.title_fa || c.title}
                   </h3>
                   <p className="text-xs text-slate-500 mb-3">
-                    مدرس: {c.instructor_name || c.instructor}
+                    مدرس: {getInstructorName(c)}
                   </p>
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-4">
                     {c.description}
