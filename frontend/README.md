@@ -1,100 +1,104 @@
-# سامانه آموزش‌های تخصصی دانشکده مهندسی کامپیوتر دانشگاه امیرکبیر
-## بخش فرانت‌اند (Frontend Client - Next.js 16)
+# Frontend Client - CE School Platform
 
-این پوشه شامل رابط کاربری و کلاینت وب سامانه بر پایه **Next.js 16 (App Router)**، **React 19** و استایل‌دهی مدرن با **Tailwind CSS** و فونت استاندارد فارسی **یکان‌بخ (Yekan Bakh)** می‌باشد.
-
----
-
-### ویژگی‌های کلیدی فرانت‌اند (Key Features)
-
-- ⚡ **Next.js 16 + Turbopack**: کامپایل و بیلد سریع با استفاده از توربوپک و معماری سرور کامپوننت‌ها (RSC).
-- 🎨 **طراحی واکنش‌گرا و مدرن (RTL)**: طراحی اختصاصی برای زبان فارسی همراه با چیدمان Grid/Flexbox کاملاً ریسپانسیو.
-- 🔤 **تایپوگرافی اصیل با فونت یکان‌بخ (FaNum)**: استفاده از تمام وزن‌های استاندارد از Hairline تا Fat با اعداد فارسی.
-- 📱 **پشتیبانی کامل از موبایل**: منوی کناری کشویی (Drawer/Sidebar) برای صفحه‌نمایش‌های کوچک.
-- ⚡ **SEO & Performance**: بهینه‌سازی تصاویر با `next/image`، فونت‌های محلی با `next/font/local` و متادیتاهای استاندارد موتورهای جستجو.
+Client application for the Amirkabir University of Technology Computer Engineering School platform, built with Next.js 16 (App Router), React 19, and Tailwind CSS.
 
 ---
 
-### ساختار پوشه‌بندی فرانت‌اند (Directory Structure)
+## Key Features
+
+- Next.js 16 and Turbopack: Fast compilation and server-side components (RSC).
+- Responsive RTL Layout: Native Right-to-Left design optimized for Persian typography and all screen sizes.
+- Typography: Full range of Yekan Bakh FaNum font weights with Persian numerical glyphs.
+- Mobile Navigation: Slide-over drawer menu for responsive mobile browsing.
+- SEO and Performance: Optimized asset delivery via Next.js image and local font loaders.
+
+---
+
+## Directory Structure
 
 ```
 frontend/
-├── public/                       # فایل‌های استاتیک، تصاویر دوره‌ها، اساتید و فونت‌ها
-│   ├── fonts/ttf/                # خانواده فونت‌های Yekan Bakh
-│   └── photos/                   # تصاویر اساتید و دوره‌ها
+├── public/                       # Static files, fonts, and images
+│   ├── fonts/ttf/                # Yekan Bakh font family files
+│   └── photos/                   # Course banners and instructor portraits
 ├── src/
-│   ├── app/                      # روت‌ها و صفحات App Router
-│   │   ├── layout.js             # قالب ریشه (Root Layout) و لود فونت‌ها
-│   │   ├── globals.css           # استایل‌های سراسری، اسکرول‌بار و RTL
-│   │   ├── page.js               # ریدایرکت پیش‌فرض به /courses
-│   │   ├── courses/              # فهرست دوره‌ها
-│   │   │   ├── page.js           # صفحه کاتالوگ دوره‌ها
-│   │   │   ├── [id]/             # صفحه داینامیک جزئیات دوره
-│   │   │   └── 1..7/             # صفحات سرفصل و جزئیات اختصاصی دوره‌ها
-│   │   ├── syllabus/             # جدول کامل سرفصل دوره‌ها
-│   │   ├── instructors/          # معرفی اعضای هیئت علمی و اساتید دوره
-│   │   ├── about/                # درباره مدرسه پاییزه امیرکبیر
-│   │   ├── contact/              # اطلاعات تماس و ارتباط با دانشکده
-│   │   ├── terms/                # قوانین و مقررات آموزشی، انصراف و تخفیف‌ها
-│   │   ├── info/                 # سوالات متداول و اطلاعات تکمیلی
-│   │   ├── calendar/             # تقویم آموزشی ترم‌ها و تاریخ‌های مهم
-│   │   ├── register/             # صفحه و فرم پیش‌ثبت‌نام
-│   │   └── micromaster/          # بسته‌های تخصصی میکرومستر
-│   ├── components/               # کامپوننت‌های ماژولار و قابل استفاده مجدد
-│   │   ├── CourseCard.js         # کارت نمایش دوره در صفحه اصلی و کاتالوگ
-│   │   ├── InstructorCard.js     # کارت معرفی استاد به همراه لینک رزومه
-│   │   └── Layout/               # ساختار چیدمان کلی
-│   │       ├── Header.js         # هدر بالای صفحه شامل Breadcrumb و عنوان دانشگاه
-│   │       ├── Sidebar.js        # منوی کناری با وضعیت اکتیو و پشتیبانی موبایل
-│   │       └── MainLayout.js     # قالب اصلی دربرگیرنده هدر و سایدبار
+│   ├── app/                      # Next.js App Router pages and layouts
+│   │   ├── layout.js             # Root layout with typography initialization
+│   │   ├── globals.css           # Global Tailwind and RTL stylesheets
+│   │   ├── page.js               # Root redirect to /courses
+│   │   ├── courses/              # Course listing and detail pages
+│   │   │   ├── page.js           # Main course catalog
+│   │   │   ├── [id]/             # Dynamic course detail router
+│   │   │   └── 1..7/             # Dedicated syllabus and detail pages for each course
+│   │   ├── syllabus/             # Course curriculum and syllabus table
+│   │   ├── instructors/          # Faculty members and instructor directory
+│   │   ├── about/                # About Amirkabir CE School
+│   │   ├── contact/              # Contact info and department location
+│   │   ├── terms/                # Academic regulations, discounts, and policies
+│   │   ├── info/                 # Supplementary information and FAQ
+│   │   ├── calendar/             # Academic calendar and term timelines
+│   │   ├── register/             # Registration instructions and application form
+│   │   └── micromaster/          # Micro-master bundled programs
+│   ├── components/               # Reusable React components
+│   │   ├── CourseCard.js         # Card component for course listings
+│   │   ├── InstructorCard.js     # Faculty profile card
+│   │   └── Layout/               # Structural layout components
+│   │       ├── Header.js         # Navigation header and breadcrumbs
+│   │       ├── Sidebar.js        # Responsive sidebar with active state tracking
+│   │       └── MainLayout.js     # Unified page layout wrapper
 │   └── data/
-│       └── sampleData.js         # داده‌های اولیه دوره‌ها، اساتید و تنظیمات
-├── Dockerfile                    # فایل داکر بیلد بهینه پروداکشن (Standalone)
-├── Dockerfile.dev                # فایل داکر محیط توسعه
-├── next.config.mjs               # تنظیمات Next.js
-├── tailwind.config.js            # تنظیمات Tailwind CSS
-└── package.json                  # اسکریپت‌ها و پکیج‌های پروژه
+│       └── sampleData.js         # Static seed data for courses and instructors
+├── Dockerfile                    # Multi-stage production container build (Standalone)
+├── Dockerfile.dev                # Development container with volume mounts
+├── next.config.mjs               # Next.js configuration
+├── tailwind.config.js            # Tailwind CSS theme configuration
+└── package.json                  # Dependencies and execution scripts
 ```
 
 ---
 
-### نقشه مسیرها و صفحات (Routing Map)
+## Routing Map
 
-| مسیر (Route) | عنوان صفحه | شرح عملکرد |
+| Route | Page Title | Description |
 |---|---|---|
-| `/` | خانه | ریدایرکت خودکار به صفحه دوره‌ها (`/courses`) |
-| `/courses` | دوره‌های آموزشی | فهرست کامل دوره‌های فعال ترم |
-| `/courses/[id]` | جزئیات دوره | اطلاعات کامل پیش‌نیازها، سرفصل و شیوه برگزاری |
-| `/syllabus` | سرفصل دوره‌ها | جدول تفکیکی سرفصل و مدرسین |
-| `/instructors` | اساتید دوره | کارت‌های اساتید همراه با لینک رزومه دانشگاه |
-| `/about` | درباره مدرسه | معرفی مدرسه، اهداف و اعتبار مدرک امیرکبیر |
-| `/contact` | تماس با ما | اطلاعات تماس، تلفن، ایمیل و آدرس دانشکده |
-| `/terms` | شرایط و مقررات | قوانین آموزشی، تخفیف‌ها و شرایط قبولی |
-| `/info` | اطلاعات تکمیلی | سوالات متداول فراگیران |
-| `/calendar` | تقویم آموزشی | تاریخ‌های شروع کلاس، امتحانات و ثبت‌نام |
-| `/register` | ثبت‌نام | راهنمای گام‌به‌گام و فرم ثبت‌نام |
-| `/micromaster` | بسته‌های میکرومستر | معرفی پکیج‌های تخصصی چنددرسی |
+| `/` | Home | Automatic redirect to `/courses` |
+| `/courses` | Courses | Complete list of courses for the active term |
+| `/courses/[id]` | Course Details | Comprehensive course specifications, syllabus, and prerequisites |
+| `/syllabus` | Syllabus | Structured curriculum table with assigned instructors |
+| `/instructors` | Instructors | Directory of faculty members and academic credentials |
+| `/about` | About | Mission, objectives, and university accreditation |
+| `/contact` | Contact Us | Contact numbers, email addresses, and physical location |
+| `/terms` | Rules and Policies | Academic regulations, refund policies, and evaluation criteria |
+| `/info` | Information | Frequently asked questions (FAQ) |
+| `/calendar` | Academic Calendar | Term schedules, enrollment deadlines, and exam dates |
+| `/register` | Registration | Step-by-step enrollment guide and submission form |
+| `/micromaster` | Micro-Masters | Multi-course certification packages |
 
 ---
 
-### نحوه اجرا (Getting Started)
+## Getting Started
 
-#### ۱. پیش‌نیازها:
-- Node.js نسخه 18 یا بالاتر
-- npm یا yarn یا pnpm
+### Prerequisites
 
-#### ۲. نصب پکیج‌ها:
+- Node.js 18.17 or higher
+- npm, yarn, or pnpm
+
+### Installation
+
 ```bash
 npm install
 ```
 
-#### ۳. اجرای سرور توسعه:
+### Development Server
+
 ```bash
 npm run dev
 ```
-سپس مرورگر خود را باز کرده و به آدرس [http://localhost:3000](http://localhost:3000) بروید.
 
-#### ۴. بیلد پروداکشن و تست:
+The application will be accessible at http://localhost:3000.
+
+### Production Build
+
 ```bash
 npm run build
 npm start

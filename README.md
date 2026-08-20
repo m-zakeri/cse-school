@@ -1,86 +1,97 @@
-# سامانه جامع آموزش‌های تخصصی دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر
-## Amirkabir University of Technology - CE School Platform
+# CE School Platform - Amirkabir University of Technology
 
-سامانه یکپارچه و مدرن آموزش‌های تخصصی، دوره‌های مهارت‌محور، میکرومسترها و صدور گواهینامه‌های رسمی دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر.
+Integrated platform for specialized training, professional micro-masters, course enrollment, and official certification provided by the Department of Computer Engineering at Amirkabir University of Technology (Tehran Polytechnic).
 
 ---
 
-### ساختار کلی مخزن (Repository Architecture)
+## Repository Architecture
 
-پروژه به صورت ماژولار و چندسرویسی (Multi-Service / Monorepo) به دو بخش مجزای کلاینت و سرور تفکیک شده است:
+This repository is organized as a multi-service structure containing independent frontend and backend services:
 
 ```
 ce-school/
-├── frontend/                 # کلاینت و رابط کاربری (Next.js 16 + Tailwind CSS)
-│   ├── src/                  # صفحات، کامپوننت‌ها و استایل‌ها
-│   ├── public/               # فونت‌های یکان‌بخ، تصاویر و دارایی‌های استاتیک
-│   ├── Dockerfile
-│   ├── package.json
-│   └── README.md             # 📄 راهنمای کامل فرانت‌اند و لیست صفحات
+├── frontend/                 # Client application (Next.js 16 + Tailwind CSS)
+│   ├── src/                  # Application pages, components, and styles
+│   ├── public/               # Static assets, images, and fonts
+│   ├── Dockerfile            # Standalone production container build
+│   ├── package.json          # Node.js dependencies and scripts
+│   └── README.md             # Detailed frontend documentation
 │
-├── backend/                  # سرویس بک‌اند (FastAPI + PostgreSQL + Redis)
-│   ├── app/                  # روترها، مدل‌های دیتابیس، اسکیماها و سرویس‌ها
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   └── README.md             # 📄 نقشه راه، دیاگرام ERD و داکیومنت کامل API
+├── backend/                  # API service (FastAPI + PostgreSQL + Redis)
+│   ├── app/                  # Application routers, database models, schemas, and services
+│   ├── requirements.txt      # Python dependencies
+│   ├── Dockerfile            # Production container build
+│   └── README.md             # Detailed backend architecture, ERD, and API roadmap
 │
-├── docker-compose.yml        # ارکستراسیون کل سرویس‌ها در محیط پروداکشن
-├── docker-compose.dev.yml    # ارکستراسیون سرویس‌ها در محیط توسعه (Hot-Reload)
+├── docker-compose.yml        # Multi-container production orchestration
+├── docker-compose.dev.yml    # Multi-container development environment with hot-reload
 └── README.md
 ```
 
 ---
 
-### راه‌اندازی سریع با داکر (Quick Start with Docker)
+## Tech Stack
 
-داکر سریع‌ترین و مطمئن‌ترین روش برای اجرای تمام لایه‌های سامانه به صورت خودکار و ایزوله است:
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend | Next.js 16 (App Router), React 19 | High-performance user interface with server-side rendering (SSR) and static generation (SSG) |
+| Styling | Tailwind CSS, Yekan Bakh Typography | RTL design system with responsive layouts and Persian number formatting |
+| Backend | Python 3.11, FastAPI | High-performance asynchronous REST API |
+| Database | PostgreSQL 16 (SQLAlchemy 2.0 Async) | ACID-compliant relational storage for courses, enrollments, and transactions |
+| Cache and Queue | Redis 7 | High-speed cache, rate limiting, and task queues |
+| DevOps | Docker, Docker Compose | Containerized reproducible environments for development and deployment |
 
-#### ۱. اجرای محیط توسعه (Development Mode):
+---
+
+## Quick Start with Docker
+
+Docker provides a quick setup to run all services (frontend, backend, PostgreSQL, and Redis) in isolated containers.
+
+### Development Mode
+
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
-- **رابط کاربری فرانت‌اند:** [http://localhost:3000](http://localhost:3000)
-- **داکیومنت تعاملی بک‌اند (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **پایگاه داده PostgreSQL:** پورت `5432`
-- **سرویس کش Redis:** پورت `6379`
 
-#### ۲. اجرای محیط پروداکشن (Production Mode):
+- Frontend: http://localhost:3000
+- Backend Swagger Documentation: http://localhost:8000/docs
+- PostgreSQL Database: port 5432
+- Redis: port 6379
+
+### Production Mode
+
 ```bash
 docker compose up -d --build
 ```
 
 ---
 
-### راه‌اندازی دستی (Manual Local Setup)
+## Manual Setup
 
-#### اجرای کلاینت فرانت‌اند:
+### Frontend Setup
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-> برای مطالعه جزئیات بیشتر به [راهنمای فرانت‌اند (frontend/README.md)](frontend/README.md) مراجعه فرمایید.
 
-#### اجرای سرور بک‌اند:
+For detailed page structures and configurations, refer to the [Frontend Documentation](frontend/README.md).
+
+### Backend Setup
+
 ```bash
 cd backend
 python -m venv venv
-venv\Scripts\activate   # Windows
-# source venv/bin/activate # Linux / macOS
+
+# Windows
+venv\Scripts\activate
+
+# Linux / macOS
+# source venv/bin/activate
+
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
-> برای مشاهده دیاگرام پایگاه داده، سناریوی احراز هویت و اندپوینت‌ها به [راهنمای بک‌اند (backend/README.md)](backend/README.md) مراجعه فرمایید.
 
----
-
-### تکنولوژی‌های استفاده‌شده (Tech Stack)
-
-| لایه | تکنولوژی | نقش و کاربرد |
-|---|---|---|
-| **Frontend** | Next.js 16 (App Router) + React 19 | فریم‌ورک رابط کاربری با رندرینگ ترکیبی SSR/SSG |
-| **Styling** | Tailwind CSS + Yekan Bakh Font | استایل‌دهی مدرن با پشتیبانی بومی RTL و تایپوگرافی اصیل |
-| **Backend** | Python 3.11 + FastAPI | سرویس REST API با بالاترین پرفورمنس و سرعت توسعه |
-| **Database** | PostgreSQL 16 (Async via SQLAlchemy 2.0) | ذخیره‌سازی رابطه‌ای امن برای تراکنش‌ها و کاربران |
-| **Cache & Queue** | Redis 7 | لایه کش داده‌ها، Rate Limiting و صف پردازش‌های پس‌زمینه |
-| **DevOps** | Docker & Docker Compose | کانتینری‌سازی و مدیریت یکپارچه محیط‌های توسعه و استقرار |
+For database schemas, entity relationship diagrams, and API endpoints, refer to the [Backend Documentation](backend/README.md).
