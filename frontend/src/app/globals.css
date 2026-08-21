@@ -29,50 +29,42 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode overrides for common container backgrounds */
+/* Dark mode overrides (Temporarily commented out by user request)
 .dark body {
   background-color: #0b0f19;
   color: #f8fafc;
 }
-
 .dark .bg-white {
   background-color: #111827 !important;
 }
-
 .dark .bg-slate-50 {
   background-color: #172033 !important;
 }
-
 .dark .bg-slate-100 {
   background-color: #1e293b !important;
 }
-
 .dark .border-slate-200,
 .dark .border-slate-200\/80,
 .dark .border-slate-200\/90,
 .dark .border-slate-100 {
   border-color: #26334d !important;
 }
-
 .dark .text-slate-900 {
   color: #f8fafc !important;
 }
-
 .dark .text-slate-800 {
   color: #f1f5f9 !important;
 }
-
 .dark .text-slate-700 {
   color: #e2e8f0 !important;
 }
-
 .dark .text-slate-600 {
   color: #cbd5e1 !important;
 }
-
 .dark .text-slate-500 {
   color: #94a3b8 !important;
 }
+*/
 
 
 /* RTL specific styles */

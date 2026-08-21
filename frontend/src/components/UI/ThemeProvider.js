@@ -10,25 +10,12 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     setIsMounted(true);
-    const saved = localStorage.getItem("ce_theme");
-    if (saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      setTheme("dark");
-      document.documentElement.classList.add("dark");
-    } else {
-      setTheme("light");
-      document.documentElement.classList.remove("dark");
-    }
+    // Force light mode
+    document.documentElement.classList.remove("dark");
   }, []);
 
   const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
-    localStorage.setItem("ce_theme", next);
-    if (next === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // Dark mode temporarily disabled by user request
   };
 
   return (

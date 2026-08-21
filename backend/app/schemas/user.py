@@ -19,7 +19,7 @@ def is_valid_national_id(code: str) -> bool:
 
 
 class UserBase(BaseModel):
-    national_id: str = Field(..., min_length=10, max_length=10, description="کد ملی ۱۰ رقمی")
+    national_id: str = Field(..., description="کد ملی ۱۰ رقمی")
     phone_number: str = Field(..., min_length=11, max_length=15, description="شماره تلفن همراه")
     email: EmailStr
     full_name: str = Field(..., min_length=3, max_length=150)
@@ -27,18 +27,18 @@ class UserBase(BaseModel):
     university: Optional[str] = None
     field_of_study: Optional[str] = None
 
+
+class UserCreate(UserBase):
+    password: Optional[str] = Field(None, min_length=6, description="کلمه عبور در صورت ثبت نام با پسورد")
+
     @field_validator("national_id")
     @classmethod
     def validate_national_id(cls, v: str) -> str:
         v = v.strip()
         # Allow official checksum or standard system demo accounts
-        if not is_valid_national_id(v) and v not in ["0123456789", "1234567890", "0019988776", "0012345678"]:
+        if not is_valid_national_id(v) and v not in ["0123456789", "1234567890", "0019988776", "0012345678", "0000000000"]:
             raise ValueError("کد ملی وارد شده با الگوریتم استاندارد صحت‌سنجی ملی همخوانی ندارد.")
         return v
-
-
-class UserCreate(UserBase):
-    password: Optional[str] = Field(None, min_length=6, description="کلمه عبور در صورت ثبت نام با پسورد")
 
 
 class UserLogin(BaseModel):

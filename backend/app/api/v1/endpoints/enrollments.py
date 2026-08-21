@@ -218,21 +218,30 @@ async def create_batch_enrollments(
     return res_all.scalars().all()
 
 
-@router.get("/user/{national_id}", response_model=List[EnrollmentRead])
+@router.get("/user/{identifier}", response_model=List[EnrollmentRead])
 async def get_user_enrollments(
-    national_id: str,
+    identifier: str,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
-    """دریافت لیست دوره‌های ثبت‌نام‌شده کاربر با کد ملی"""
+    """دریافت لیست دوره‌های ثبت‌نام‌شده کاربر با کد ملی، شماره تلفن یا ایمیل"""
+    from sqlalchemy import or_
+    clean_id = identifier.strip()
     stmt = (
         select(Enrollment)
         .join(User, Enrollment.user_id == User.id)
-        .where(User.national_id == national_id)
+        .where(
+            or_(
+                User.national_id == clean_id,
+                User.phone_number == clean_id,
+                User.email == clean_id,
+            )
+        )
         .options(*enrollment_options())
         .order_by(desc(Enrollment.created_at))
     )
     res = await db.execute(stmt)
     return res.scalars().all()
+
 
 
 @router.get("/admin/all", response_model=List[EnrollmentRead])

@@ -121,7 +121,7 @@ const Header = () => {
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Dark / Light Mode Switcher */}
+          {/* Dark / Light Mode Switcher (Temporarily commented out)
           {themeMounted && (
             <button
               type="button"
@@ -140,6 +140,7 @@ const Header = () => {
               )}
             </button>
           )}
+          */}
 
           {currentUser ? (
             <div className="flex items-center gap-2">
