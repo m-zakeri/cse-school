@@ -116,6 +116,7 @@ export default function StudentDashboard() {
   const handleLogout = () => {
     clearAuthSession();
     setUser(null);
+    window.location.href = "/courses";
   };
 
   const handleDropCourse = (enrollment) => {

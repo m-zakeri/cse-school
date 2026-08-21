@@ -18,7 +18,15 @@ const Header = () => {
   const { theme, toggleTheme, isDark, isMounted: themeMounted } = useTheme();
 
   useEffect(() => {
-    setCurrentUser(getCurrentUser());
+    const syncUser = () => setCurrentUser(getCurrentUser());
+    syncUser();
+
+    window.addEventListener("aut_auth_change", syncUser);
+    window.addEventListener("storage", syncUser);
+    return () => {
+      window.removeEventListener("aut_auth_change", syncUser);
+      window.removeEventListener("storage", syncUser);
+    };
   }, [pathname]);
 
   const handleLogout = () => {

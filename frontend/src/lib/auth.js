@@ -8,6 +8,7 @@ export function saveAuthSession(token, user) {
     timestamp: Date.now(),
   };
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  window.dispatchEvent(new Event("aut_auth_change"));
 }
 
 export function getAuthSession() {
@@ -29,6 +30,7 @@ export function getCurrentUser() {
 export function clearAuthSession() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.dispatchEvent(new Event("aut_auth_change"));
 }
 
 export function updateAuthUser(updatedUser) {
@@ -36,9 +38,11 @@ export function updateAuthUser(updatedUser) {
   const session = getAuthSession() || {};
   session.user = { ...session.user, ...updatedUser };
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  window.dispatchEvent(new Event("aut_auth_change"));
 }
 
 export function isAdminUser() {
   const user = getCurrentUser();
   return user?.role === "ADMIN";
 }
+
