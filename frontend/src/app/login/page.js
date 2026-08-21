@@ -161,20 +161,6 @@ function LoginContent() {
         router.push("/dashboard");
       }
     } catch (err) {
-      if (otpCode.trim() === "12345") {
-        const mockStudent = {
-          id: "student-otp-uuid",
-          national_id: otpIdentifier,
-          phone_number: "09120000000",
-          email: "student@aut.ac.ir",
-          full_name: "دانشجوی گرامی",
-          role: "STUDENT",
-        };
-        saveAuthSession("mock-otp-token", mockStudent);
-        toast.success("ورود موفقیت‌آمیز بود.");
-        router.push(redirectUrl || "/dashboard");
-        return;
-      }
       const msg = err.message || "کد وارد شده نادرست یا منقضی شده است.";
       setErrorMessage(msg);
       toast.error(msg);

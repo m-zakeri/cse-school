@@ -489,22 +489,47 @@ export async function apiVerifyOTP(data) {
       body: JSON.stringify(data),
     });
   } catch {
-    // Offline Mock OTP verification
-    const cleanId = data.identifier.trim();
-    const mockUser = {
-      id: `usr-${cleanId}`,
-      national_id: cleanId.length === 10 ? cleanId : "0019988776",
-      phone_number: cleanId.startsWith("09") ? cleanId : "09120000000",
-      email: cleanId.includes("@") ? cleanId : `user_${cleanId}@aut.ac.ir`,
-      full_name: "دانشجوی گرامی",
-      role: "STUDENT",
-      university: "دانشگاه صنعتی امیرکبیر",
-    };
-    saveLocalUser(mockUser);
-    return {
-      access_token: "mock-otp-token",
-      token_type: "bearer",
-      user: mockUser,
-    };
+    // Offline verification for existing user
+    const cleanId = data.identifier.trim().toLowerCase();
+    const localUsers = getLocalUsers();
+    const found = localUsers.find(
+      (u) =>
+        u.national_id === cleanId ||
+        u.phone_number === cleanId ||
+        u.email?.toLowerCase() === cleanId
+    );
+
+    if (found) {
+      if (data.new_password) {
+        found.password = data.new_password;
+        saveLocalUser(found);
+      }
+      return {
+        access_token: "mock-otp-token",
+        token_type: "bearer",
+        user: found,
+      };
+    }
+
+    if (cleanId === "admin" || cleanId === "admin@aut.ac.ir" || cleanId === "0019988776") {
+      const adminUser = {
+        id: "admin-uuid",
+        national_id: "0019988776",
+        phone_number: "09121234567",
+        email: "admin@aut.ac.ir",
+        full_name: "مدیر آموزش دانشکده مهندسی کامپیوتر",
+        role: "ADMIN",
+        university: "دانشگاه صنعتی امیرکبیر",
+      };
+      return {
+        access_token: "mock-admin-token",
+        token_type: "bearer",
+        user: adminUser,
+      };
+    }
+
+    throw new Error(
+      "کاربری با این مشخصات در سامانه یافت نشد. لطفاً ابتدا در سامانه ثبت‌نام نمایید."
+    );
   }
 }

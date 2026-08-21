@@ -49,39 +49,6 @@ function getInstructorName(course) {
   return "عضو هیئت علمی دانشگاه صنعتی امیرکبیر";
 }
 
-function getMockEnrollments() {
-  return [
-    {
-      id: "mock-1",
-      user: {
-        full_name: "حسین زارعی‌نژاد",
-        national_id: "0123456789",
-        phone_number: "09123456789",
-        email: "zarei@aut.ac.ir",
-        university: "دانشگاه صنعتی امیرکبیر",
-      },
-      course: initialCourses[0],
-      tracking_code: "AUT-1404-E7A912",
-      status: "REGISTERED",
-      created_at: new Date().toISOString(),
-    },
-    {
-      id: "mock-2",
-      user: {
-        full_name: "مریم احمدی",
-        national_id: "0019876543",
-        phone_number: "09351112233",
-        email: "ahmadi@aut.ac.ir",
-        university: "دانشگاه صنعتی امیرکبیر",
-      },
-      course: initialCourses[1],
-      tracking_code: "AUT-1404-B3F401",
-      status: "REGISTERED",
-      created_at: new Date().toISOString(),
-    },
-  ];
-}
-
 export default function AdminDashboard() {
   const [isMounted, setIsMounted] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
@@ -119,13 +86,14 @@ export default function AdminDashboard() {
 
   // New Course Form State
   const [newCourse, setNewCourse] = useState({
+    course_number: "",
     title_fa: "",
     title_en: "",
     instructor_name: "",
-    field: "مهندسی کامپیوتر – نرم‌افزار",
+    field: "مهندسی نرم‌افزار",
     type: "اختصاصی",
-    units: "۳ واحد",
-    level: "کارشناسی",
+    units: 3,
+    level: "کارشناسی ارشد",
     course_level: "متوسط",
     price: 2500000,
     capacity: 30,
@@ -138,13 +106,9 @@ export default function AdminDashboard() {
     // 1. Load Enrollments
     try {
       const data = await apiGetAllEnrollmentsAdmin();
-      if (data && data.length > 0) {
-        setEnrollments(data);
-      } else {
-        setEnrollments(getMockEnrollments());
-      }
+      setEnrollments(Array.isArray(data) ? data : []);
     } catch {
-      setEnrollments(getMockEnrollments());
+      setEnrollments([]);
     }
 
     // 2. Load Courses
