@@ -426,35 +426,41 @@ export default function AdminDashboard() {
 
   // Analytics Computation
   const analyticsData = useMemo(() => {
-    const courseCounts = {};
-    let totalRevenue = 0;
+    const courseBreakdown = allCourses.map((c) => {
+      const cNum = Number(c.course_number || c.id) || null;
+      const cIdStr = String(c.id || "").toLowerCase();
+      const cTitle = (c.title_fa || c.title || "").trim().toLowerCase();
 
-    allCourses.forEach((c) => {
-      courseCounts[c.id] = {
+      const matchingEnrollments = enrollments.filter((enr) => {
+        const enrCourse = enr.course || {};
+        const enrNum = Number(enrCourse.course_number) || null;
+        const enrId = String(enrCourse.id || enr.course_id || "").toLowerCase();
+        const enrTitle = (enrCourse.title_fa || enrCourse.title || "").trim().toLowerCase();
+
+        if (cNum && enrNum && cNum === enrNum) return true;
+        if (cIdStr && enrId && (cIdStr === enrId || enrId.includes(cIdStr))) return true;
+        if (cTitle && enrTitle && (cTitle === enrTitle || cTitle.includes(enrTitle) || enrTitle.includes(cTitle))) return true;
+        return false;
+      });
+
+      const enrolledCount = matchingEnrollments.length;
+      const capacity = Number(c.capacity) || 30;
+
+      return {
+        id: c.id,
         title: c.title_fa || c.title,
         instructor: getInstructorName(c),
-        enrolledCount: 0,
-        capacity: c.capacity || 30,
-        price: Number(c.price) || 2500000,
+        enrolledCount,
+        capacity,
       };
     });
 
-    enrollments.forEach((enr) => {
-      const cId = enr.course?.id || enr.course?.course_number || enr.course_id;
-      if (courseCounts[cId]) {
-        courseCounts[cId].enrolledCount += 1;
-        totalRevenue += courseCounts[cId].price;
-      }
-    });
-
-    const coursesArray = Object.values(courseCounts);
-    coursesArray.sort((a, b) => b.enrolledCount - a.enrolledCount);
+    courseBreakdown.sort((a, b) => b.enrolledCount - a.enrolledCount);
 
     return {
-      coursesBreakdown: coursesArray,
+      coursesBreakdown: courseBreakdown,
       totalEnrollments: enrollments.length,
       completedEnrollments: enrollments.filter((e) => e.status === "COMPLETED").length,
-      totalRevenue,
     };
   }, [enrollments, allCourses]);
 
@@ -616,9 +622,9 @@ export default function AdminDashboard() {
               <AwardIcon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-slate-500">مجموع درآمد ترم</p>
-              <p className="text-sm font-extrabold text-indigo-600">
-                {formatPriceToman(analyticsData.totalRevenue)}
+              <p className="text-xs text-slate-500">گواهینامه‌های صادرشده</p>
+              <p className="text-lg font-extrabold text-indigo-600">
+                {toPersianDigits(analyticsData.completedEnrollments)} گواهی
               </p>
             </div>
           </div>
@@ -847,7 +853,7 @@ export default function AdminDashboard() {
                 return (
                   <div
                     key={idx}
-                    className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2"
+                    className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2.5"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                       <div>
@@ -858,12 +864,13 @@ export default function AdminDashboard() {
                           (مدرس: {c.instructor})
                         </span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-slate-600">
-                          {toPersianDigits(c.enrolledCount)} از {toPersianDigits(c.capacity)} دانشجو ({toPersianDigits(percent)}٪ ظرفیت)
+                      <div className="flex items-center gap-2 font-bold text-blue-900">
+                        <span>
+                          {toPersianDigits(c.enrolledCount)} از {toPersianDigits(c.capacity)} دانشجو
                         </span>
-                        <span className="font-bold text-blue-700">
-                          {formatPriceToman(c.enrolledCount * c.price)}
+                        <span className="text-slate-400 font-normal">|</span>
+                        <span className="text-blue-700">
+                          {toPersianDigits(percent)}٪ ظرفیت
                         </span>
                       </div>
                     </div>
