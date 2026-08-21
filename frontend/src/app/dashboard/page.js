@@ -22,6 +22,7 @@ import {
   PhoneIcon,
 } from "@/components/Icons";
 import { toPersianDigits, formatTrackingCode } from "@/lib/formatters";
+import CustomModal from "@/components/UI/CustomModal";
 
 function getInstructorName(course) {
   if (!course) return "عضو هیئت علمی";
@@ -43,6 +44,18 @@ export default function StudentDashboard() {
   const [userEnrollments, setUserEnrollments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("courses"); // 'courses' | 'announcements' | 'profile'
+
+  // Modal State
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    type: "danger",
+    title: "",
+    message: "",
+    confirmText: "تأیید",
+    cancelText: "انصراف",
+    isConfirm: true,
+    onConfirm: null,
+  });
 
   // Course drop state
   const [droppingId, setDroppingId] = useState(null);
@@ -103,36 +116,42 @@ export default function StudentDashboard() {
     setUser(null);
   };
 
-  const handleDropCourse = async (enrollment) => {
+  const handleDropCourse = (enrollment) => {
     const courseTitle =
       enrollment.course?.title_fa || enrollment.course?.title || "این دوره";
-    const confirmDrop = window.confirm(
-      `آیا از انصراف از دوره «${courseTitle}» اطمینان دارید؟\nاین عملیات غیرقابل بازگشت است.`
-    );
-    if (!confirmDrop) return;
 
-    setDroppingId(enrollment.id);
-    setActionMessage({ text: "", type: "" });
+    setModalConfig({
+      isOpen: true,
+      type: "danger",
+      title: "تأیید انصراف از دوره",
+      message: `آیا از انصراف و حذف دوره «${courseTitle}» از برنامه درسی خود اطمینان دارید؟ این عملیات پرونده ثبت‌نام را حذف می‌کند.`,
+      confirmText: "بله، انصراف می‌دهم",
+      cancelText: "بازگشت",
+      isConfirm: true,
+      onConfirm: async () => {
+        setDroppingId(enrollment.id);
+        setActionMessage({ text: "", type: "" });
 
-    try {
-      if (enrollment.id) {
-        await apiDropEnrollment(enrollment.id);
-      }
-      setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
-      setActionMessage({
-        text: `انصراف شما از دوره «${courseTitle}» با موفقیت در سامانه ثبت شد.`,
-        type: "success",
-      });
-    } catch {
-      // Fallback local remove
-      setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
-      setActionMessage({
-        text: `انصراف شما از دوره «${courseTitle}» با موفقیت ثبت شد.`,
-        type: "success",
-      });
-    } finally {
-      setDroppingId(null);
-    }
+        try {
+          if (enrollment.id) {
+            await apiDropEnrollment(enrollment.id);
+          }
+          setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
+          setActionMessage({
+            text: `انصراف شما از دوره «${courseTitle}» با موفقیت در سامانه ثبت شد.`,
+            type: "success",
+          });
+        } catch {
+          setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
+          setActionMessage({
+            text: `انصراف شما از دوره «${courseTitle}» با موفقیت ثبت شد.`,
+            type: "success",
+          });
+        } finally {
+          setDroppingId(null);
+        }
+      },
+    });
   };
 
   const handleSaveProfile = async (e) => {
@@ -654,6 +673,12 @@ export default function StudentDashboard() {
           </form>
         </div>
       )}
+
+      {/* Custom Centered Modal Dialog */}
+      <CustomModal
+        {...modalConfig}
+        onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </MainLayout>
   );
 }

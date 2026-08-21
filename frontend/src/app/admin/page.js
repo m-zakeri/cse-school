@@ -33,6 +33,7 @@ import {
   formatPriceToman,
   formatTrackingCode,
 } from "@/lib/formatters";
+import CustomModal from "@/components/UI/CustomModal";
 
 function getInstructorName(course) {
   if (!course) return "عضو هیئت علمی";
@@ -85,6 +86,18 @@ export default function AdminDashboard() {
   const [isMounted, setIsMounted] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
   const [activeTab, setActiveTab] = useState("ENROLLMENTS"); // "ENROLLMENTS" | "ANALYTICS" | "COURSES" | "NEW_COURSE"
+
+  // Modal Dialog State
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    type: "danger",
+    title: "",
+    message: "",
+    confirmText: "تأیید",
+    cancelText: "انصراف",
+    isConfirm: true,
+    onConfirm: null,
+  });
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState("admin@aut.ac.ir");
@@ -203,16 +216,22 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleDeleteEnrollment = async (enrId, studentName, courseTitle) => {
-    const confirmed = window.confirm(
-      `آیا از حذف پرونده ثبت‌نام «${studentName || "دانشجو"}» از دوره «${courseTitle || ""}» اطمینان دارید؟`
-    );
-    if (!confirmed) return;
-
-    try {
-      await apiDeleteEnrollmentAdmin(enrId);
-    } catch {}
-    setEnrollments((prev) => prev.filter((item) => item.id !== enrId));
+  const handleDeleteEnrollment = (enrId, studentName, courseTitle) => {
+    setModalConfig({
+      isOpen: true,
+      type: "danger",
+      title: "تأیید حذف پرونده دانشجو",
+      message: `آیا از حذف پرونده ثبت‌نام «${studentName || "دانشجو"}» از دوره «${courseTitle || ""}» اطمینان دارید؟`,
+      confirmText: "بله، حذف از دوره",
+      cancelText: "انصراف",
+      isConfirm: true,
+      onConfirm: async () => {
+        try {
+          await apiDeleteEnrollmentAdmin(enrId);
+        } catch {}
+        setEnrollments((prev) => prev.filter((item) => item.id !== enrId));
+      },
+    });
   };
 
   const handleCreateCourseSubmit = async (e) => {
@@ -282,10 +301,22 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteCourse = async (courseId) => {
-    if (!window.confirm("آیا از حذف این دوره از سامانه اطمینان دارید؟")) return;
-    await apiDeleteCourse(courseId);
-    setAllCourses((prev) => prev.filter((c) => c.id !== courseId && c.course_number !== courseId));
+  const handleDeleteCourse = (courseId) => {
+    setModalConfig({
+      isOpen: true,
+      type: "danger",
+      title: "تأیید حذف دوره آموزشی",
+      message: "آیا از حذف این دوره از سامانه اطمینان دارید؟ این دوره از فهرست دوره‌ها و سرفصل‌ها حذف خواهد شد.",
+      confirmText: "بله، حذف دوره",
+      cancelText: "انصراف",
+      isConfirm: true,
+      onConfirm: async () => {
+        await apiDeleteCourse(courseId);
+        setAllCourses((prev) =>
+          prev.filter((c) => c.id !== courseId && c.course_number !== courseId)
+        );
+      },
+    });
   };
 
   const handleLogout = () => {
@@ -296,7 +327,15 @@ export default function AdminDashboard() {
   // Export to UTF-8 BOM CSV / Excel
   const handleExportCSV = () => {
     if (filteredEnrollments.length === 0) {
-      alert("پرونده‌ای برای خروجی اکسل یافت نشد.");
+      setModalConfig({
+        isOpen: true,
+        type: "warning",
+        title: "گزارش اکسل",
+        message: "هیچ پرونده ثبت‌نامی متناسب با فیلترهای انتخابی جهت خروجی اکسل یافت نشد.",
+        confirmText: "متوجه شدم",
+        isConfirm: false,
+        onConfirm: null,
+      });
       return;
     }
 
@@ -1098,6 +1137,12 @@ export default function AdminDashboard() {
           </form>
         </div>
       )}
+
+      {/* Custom Centered Modal Dialog */}
+      <CustomModal
+        {...modalConfig}
+        onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+      />
     </MainLayout>
   );
 }
