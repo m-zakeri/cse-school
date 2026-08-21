@@ -31,6 +31,13 @@ export function clearAuthSession() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
+export function updateAuthUser(updatedUser) {
+  if (typeof window === "undefined") return;
+  const session = getAuthSession() || {};
+  session.user = { ...session.user, ...updatedUser };
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+}
+
 export function isAdminUser() {
   const user = getCurrentUser();
   return user?.role === "ADMIN";

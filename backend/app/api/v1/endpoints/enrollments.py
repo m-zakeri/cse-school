@@ -298,6 +298,26 @@ async def delete_enrollment_admin(
     return {"message": "ثبت‌نام دانشجو با موفقیت از این دوره حذف گردید."}
 
 
+@router.delete("/{enrollment_id}", status_code=status.HTTP_200_OK)
+async def drop_enrollment_student(
+    enrollment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """انصراف دانشجو از دوره در پرتال"""
+    stmt = select(Enrollment).where(Enrollment.id == enrollment_id)
+    res = await db.execute(stmt)
+    enr = res.scalars().first()
+    if not enr:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="پرونده ثبت‌نام یافت نشد.",
+        )
+
+    await db.delete(enr)
+    await db.commit()
+    return {"message": "انصراف شما از دوره با موفقیت ثبت گردید."}
+
+
 @router.get("/user/{national_id}", response_model=List[EnrollmentRead])
 async def get_user_enrollments(
     national_id: str,

@@ -156,3 +156,17 @@ export async function apiDeleteEnrollmentAdmin(enrollmentId) {
     method: "DELETE",
   });
 }
+
+export async function apiDropEnrollment(enrollmentId) {
+  return await fetchFromAPI(`/enrollments/${enrollmentId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function apiUpdateUserProfile(profileData) {
+  return await fetchFromAPI("/auth/profile", {
+    method: "PUT",
+    body: JSON.stringify(profileData),
+  });
+}
+

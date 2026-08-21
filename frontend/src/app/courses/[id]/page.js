@@ -220,6 +220,32 @@ export default function CourseDetailsPage({ params, searchParams }) {
 
   return (
     <MainLayout>
+      {/* Official Print-Only Letterhead for PDF Export */}
+      <div className="hidden print:block mb-6 border-b-2 border-slate-900 pb-5">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <img
+            src="/photos/brand/AUT.png"
+            alt="AUT"
+            className="w-16 h-16 object-contain"
+          />
+          <div className="text-center space-y-1">
+            <h2 className="text-base font-extrabold text-slate-900">
+              دانشگاه صنعتی امیرکبیر (پلی‌تکنیک تهران)
+            </h2>
+            <h3 className="text-xs font-bold text-slate-700">
+              دانشکده مهندسی کامپیوتر — سامانه آموزش‌های تخصصی
+            </h3>
+            <p className="text-[11px] text-slate-500 font-semibold">
+              سند رسمی طرح درس و سرفصل تفصیلی مصوب دوره
+            </p>
+          </div>
+          <div className="text-left text-[11px] text-slate-600 space-y-1">
+            <p>ترم ارائه: <span className="font-bold">پاییز ۱۴۰۴</span></p>
+            <p>شماره دوره: <span className="font-mono font-bold">{toPersianDigits(course.course_number || course.id)}</span></p>
+          </div>
+        </div>
+      </div>
+
       {/* Course Header Banner */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 mb-8 shadow-sm print:border-none print:shadow-none">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">

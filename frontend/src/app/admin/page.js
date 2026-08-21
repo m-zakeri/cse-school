@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { getCurrentUser, saveAuthSession, clearAuthSession } from "@/lib/auth";
@@ -26,7 +26,13 @@ import {
   CodeIcon,
   SparklesIcon,
   ChevronLeftIcon,
+  DocumentTextIcon,
 } from "@/components/Icons";
+import {
+  toPersianDigits,
+  formatPriceToman,
+  formatTrackingCode,
+} from "@/lib/formatters";
 
 function getInstructorName(course) {
   if (!course) return "عضو هیئت علمی";
@@ -42,12 +48,45 @@ function getInstructorName(course) {
   return "عضو هیئت علمی دانشگاه صنعتی امیرکبیر";
 }
 
+function getMockEnrollments() {
+  return [
+    {
+      id: "mock-1",
+      user: {
+        full_name: "حسین زارعی‌نژاد",
+        national_id: "0123456789",
+        phone_number: "09123456789",
+        email: "zarei@aut.ac.ir",
+        university: "دانشگاه صنعتی امیرکبیر",
+      },
+      course: initialCourses[0],
+      tracking_code: "AUT-1404-E7A912",
+      status: "REGISTERED",
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: "mock-2",
+      user: {
+        full_name: "مریم احمدی",
+        national_id: "0019876543",
+        phone_number: "09351112233",
+        email: "ahmadi@aut.ac.ir",
+        university: "دانشگاه صنعتی امیرکبیر",
+      },
+      course: initialCourses[1],
+      tracking_code: "AUT-1404-B3F401",
+      status: "REGISTERED",
+      created_at: new Date().toISOString(),
+    },
+  ];
+}
+
 export default function AdminDashboard() {
   const [isMounted, setIsMounted] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
-  const [activeTab, setActiveTab] = useState("ENROLLMENTS"); // "ENROLLMENTS" | "COURSES" | "NEW_COURSE"
+  const [activeTab, setActiveTab] = useState("ENROLLMENTS"); // "ENROLLMENTS" | "ANALYTICS" | "COURSES" | "NEW_COURSE"
 
-  // Login form state (if opened directly in incognito)
+  // Login form state
   const [loginEmail, setLoginEmail] = useState("admin@aut.ac.ir");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -57,6 +96,7 @@ export default function AdminDashboard() {
   const [enrollments, setEnrollments] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [courseFilter, setCourseFilter] = useState("ALL");
 
   // Courses State
   const [allCourses, setAllCourses] = useState([]);
@@ -127,7 +167,6 @@ export default function AdminDashboard() {
       }
       setLoginError("حساب کاربری شما دارای سطح دسترسی مدیریت نیست.");
     } catch {
-      // Local check fallback
       if (
         loginEmail.trim().toLowerCase() === "admin@aut.ac.ir" &&
         loginPassword === "Admin@AUT1404!"
@@ -156,9 +195,7 @@ export default function AdminDashboard() {
       currentStatus === "REGISTERED" ? "COMPLETED" : "REGISTERED";
     try {
       await apiUpdateEnrollmentStatus(enrId, nextStatus);
-    } catch {
-      // Local state update
-    }
+    } catch {}
     setEnrollments((prev) =>
       prev.map((item) =>
         item.id === enrId ? { ...item, status: nextStatus } : item
@@ -174,9 +211,7 @@ export default function AdminDashboard() {
 
     try {
       await apiDeleteEnrollmentAdmin(enrId);
-    } catch {
-      // Local state fallback
-    }
+    } catch {}
     setEnrollments((prev) => prev.filter((item) => item.id !== enrId));
   };
 
@@ -258,18 +293,131 @@ export default function AdminDashboard() {
     setAdminUser(null);
   };
 
-  const filteredEnrollments = enrollments.filter((item) => {
-    const matchesSearch =
-      item.user?.full_name?.includes(searchQuery) ||
-      item.user?.national_id?.includes(searchQuery) ||
-      item.tracking_code?.includes(searchQuery) ||
-      item.course?.title_fa?.includes(searchQuery);
+  // Export to UTF-8 BOM CSV / Excel
+  const handleExportCSV = () => {
+    if (filteredEnrollments.length === 0) {
+      alert("پرونده‌ای برای خروجی اکسل یافت نشد.");
+      return;
+    }
 
-    const matchesStatus =
-      statusFilter === "ALL" || item.status === statusFilter;
+    const headers = [
+      "ردیف",
+      "نام دانشجو",
+      "کد ملی",
+      "شماره تماس",
+      "ایمیل",
+      "دانشگاه",
+      "عنوان دوره",
+      "مدرس",
+      "کد رهگیری",
+      "وضعیت پرونده",
+      "تاریخ ثبت‌نام",
+    ];
 
-    return matchesSearch && matchesStatus;
-  });
+    const rows = filteredEnrollments.map((enr, idx) => {
+      const courseData = enr.course || {};
+      const instructor = getInstructorName(courseData);
+      const title = courseData.title_fa || courseData.title || "";
+      const studentName = enr.user?.full_name || enr.full_name || "دانشجو";
+      const nationalId = enr.user?.national_id || enr.national_id || "";
+      const phone = enr.user?.phone_number || enr.phone_number || "";
+      const email = enr.user?.email || enr.email || "";
+      const uni = enr.user?.university || enr.university || "دانشگاه صنعتی امیرکبیر";
+      const tracking = enr.tracking_code || "";
+      const status = enr.status === "COMPLETED" ? "تکمیل شده" : "ثبت‌نام نهایی";
+      const date = enr.created_at
+        ? new Date(enr.created_at).toLocaleDateString("fa-IR")
+        : "۱۴۰۴/۰۶/۲۰";
+
+      return [
+        idx + 1,
+        `"${studentName}"`,
+        `"${nationalId}"`,
+        `"${phone}"`,
+        `"${email}"`,
+        `"${uni}"`,
+        `"${title}"`,
+        `"${instructor}"`,
+        `"${tracking}"`,
+        `"${status}"`,
+        `"${date}"`,
+      ];
+    });
+
+    const csvContent =
+      "\uFEFF" +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `AUT_CE_Students_${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintRoster = () => {
+    window.print();
+  };
+
+  const filteredEnrollments = useMemo(() => {
+    return enrollments.filter((item) => {
+      const matchesSearch =
+        item.user?.full_name?.includes(searchQuery) ||
+        item.user?.national_id?.includes(searchQuery) ||
+        item.tracking_code?.includes(searchQuery) ||
+        item.course?.title_fa?.includes(searchQuery) ||
+        item.course?.title?.includes(searchQuery);
+
+      const matchesStatus =
+        statusFilter === "ALL" || item.status === statusFilter;
+
+      const cId = item.course?.course_number || item.course?.id;
+      const matchesCourse =
+        courseFilter === "ALL" || String(cId) === String(courseFilter);
+
+      return matchesSearch && matchesStatus && matchesCourse;
+    });
+  }, [enrollments, searchQuery, statusFilter, courseFilter]);
+
+  // Analytics Computation
+  const analyticsData = useMemo(() => {
+    const courseCounts = {};
+    let totalRevenue = 0;
+
+    allCourses.forEach((c) => {
+      courseCounts[c.id] = {
+        title: c.title_fa || c.title,
+        instructor: getInstructorName(c),
+        enrolledCount: 0,
+        capacity: c.capacity || 30,
+        price: Number(c.price) || 2500000,
+      };
+    });
+
+    enrollments.forEach((enr) => {
+      const cId = enr.course?.id || enr.course?.course_number || enr.course_id;
+      if (courseCounts[cId]) {
+        courseCounts[cId].enrolledCount += 1;
+        totalRevenue += courseCounts[cId].price;
+      }
+    });
+
+    const coursesArray = Object.values(courseCounts);
+    coursesArray.sort((a, b) => b.enrolledCount - a.enrolledCount);
+
+    return {
+      coursesBreakdown: coursesArray,
+      totalEnrollments: enrollments.length,
+      completedEnrollments: enrollments.filter((e) => e.status === "COMPLETED").length,
+      totalRevenue,
+    };
+  }, [enrollments, allCourses]);
 
   if (!isMounted) {
     return (
@@ -359,7 +507,7 @@ export default function AdminDashboard() {
   return (
     <MainLayout>
       {/* Header Banner */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 mb-8 shadow-md border border-slate-800">
+      <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 mb-8 shadow-md border border-slate-800 print:hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-md">
@@ -390,15 +538,17 @@ export default function AdminDashboard() {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8 print:hidden">
         <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
               <UsersIcon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-slate-500">کل متقاضیان</p>
-              <p className="text-lg font-extrabold text-slate-900">{enrollments.length} نفر</p>
+              <p className="text-xs text-slate-500">کل پرونده‌های ثبت‌نام</p>
+              <p className="text-lg font-extrabold text-slate-900">
+                {toPersianDigits(enrollments.length)} دانشجو
+              </p>
             </div>
           </div>
         </div>
@@ -409,23 +559,13 @@ export default function AdminDashboard() {
               <CheckCircleIcon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-slate-500">پذیرفته‌شدگان قطعی</p>
+              <p className="text-xs text-slate-500">ثبت‌نام‌های قطعی</p>
               <p className="text-lg font-extrabold text-emerald-600">
-                {enrollments.filter((e) => e.status === "REGISTERED" || e.status === "COMPLETED").length} نفر
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <ClockIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">در انتظار بررسی</p>
-              <p className="text-lg font-extrabold text-amber-600">
-                {enrollments.filter((e) => e.status === "PENDING_PAYMENT").length} نفر
+                {toPersianDigits(
+                  enrollments.filter(
+                    (e) => e.status === "REGISTERED" || e.status === "COMPLETED"
+                  ).length
+                )} نفر
               </p>
             </div>
           </div>
@@ -434,18 +574,34 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <AwardIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">مجموع درآمد ترم</p>
+              <p className="text-sm font-extrabold text-indigo-600">
+                {formatPriceToman(analyticsData.totalRevenue)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
               <BookOpenIcon className="w-5 h-5" />
             </div>
             <div>
               <p className="text-xs text-slate-500">دوره‌های فعال سامانه</p>
-              <p className="text-lg font-extrabold text-indigo-600">{allCourses.length} دوره</p>
+              <p className="text-lg font-extrabold text-purple-600">
+                {toPersianDigits(allCourses.length)} عنوان دوره
+              </p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Navigation Tabs */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-wrap gap-2.5 mb-6 print:hidden">
         <button
           onClick={() => setActiveTab("ENROLLMENTS")}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
@@ -455,7 +611,19 @@ export default function AdminDashboard() {
           }`}
         >
           <UsersIcon className="w-4 h-4" />
-          <span>پرونده‌های ثبت‌نام ({enrollments.length})</span>
+          <span>پرونده‌های ثبت‌نام ({toPersianDigits(enrollments.length)})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("ANALYTICS")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            activeTab === "ANALYTICS"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+              : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50"
+          }`}
+        >
+          <AwardIcon className="w-4 h-4" />
+          <span>آمار و نمودارهای تحلیلی</span>
         </button>
 
         <button
@@ -467,7 +635,7 @@ export default function AdminDashboard() {
           }`}
         >
           <BookOpenIcon className="w-4 h-4" />
-          <span>لیست دوره‌ها ({allCourses.length})</span>
+          <span>لیست دوره‌ها ({toPersianDigits(allCourses.length)})</span>
         </button>
 
         <button
@@ -483,201 +651,253 @@ export default function AdminDashboard() {
         </button>
       </div>
 
+      {/* Print Letterhead Roster Header */}
+      <div className="hidden print:block mb-6 border-b-2 border-slate-900 pb-4 text-center">
+        <h2 className="text-lg font-extrabold text-slate-900">
+          دانشگاه صنعتی امیرکبیر — دانشکده مهندسی کامپیوتر
+        </h2>
+        <h3 className="text-sm font-bold text-slate-700 mt-1">
+          لیست رسمی حضور و غیاب و ارزیابی دانشجویان — ترم پاییز ۱۴۰۴
+        </h3>
+        <p className="text-xs text-slate-500 mt-1">
+          تاریخ گزارش: {new Date().toLocaleDateString("fa-IR")}
+        </p>
+      </div>
+
       {/* TAB 1: Enrollments Management */}
       {activeTab === "ENROLLMENTS" && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm mb-12">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm mb-12 print:border-none print:shadow-none print:p-0">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100 print:hidden">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <UsersIcon className="w-5 h-5 text-blue-600" />
-              <span>فهرست پرونده‌های متقاضیان</span>
+              <span>فهرست پرونده‌های متقاضیان ({toPersianDigits(filteredEnrollments.length)})</span>
             </h2>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               <div className="relative">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="جستجوی نام، کد ملی یا رهگیری..."
-                  className="w-full sm:w-64 pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="جستجوی نام، کد ملی، دوره..."
+                  className="pr-8 pl-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
-                <SearchIcon className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
               </div>
 
-              <div className="flex bg-slate-100 p-1 rounded-xl text-xs">
-                <button
-                  onClick={() => setStatusFilter("ALL")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                    statusFilter === "ALL"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  همه
-                </button>
-                <button
-                  onClick={() => setStatusFilter("REGISTERED")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                    statusFilter === "REGISTERED"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  تایید شده
-                </button>
-                <button
-                  onClick={() => setStatusFilter("PENDING_PAYMENT")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
-                    statusFilter === "PENDING_PAYMENT"
-                      ? "bg-white text-slate-900 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  در انتظار
-                </button>
-              </div>
+              <select
+                value={courseFilter}
+                onChange={(e) => setCourseFilter(e.target.value)}
+                className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 outline-hidden"
+              >
+                <option value="ALL">همه دوره‌ها</option>
+                {allCourses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title_fa || c.title}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+              >
+                <DocumentTextIcon className="w-4 h-4" />
+                <span>دانلود اکسل (CSV)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintRoster}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2 px-3.5 rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <span>چاپ لیست کلاسی</span>
+              </button>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+            <table className="w-full text-right border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-50 text-slate-600 border-b border-slate-200/80">
-                  <th className="py-3 px-4 font-bold">متقاضی</th>
-                  <th className="py-3 px-4 font-bold">کد ملی</th>
-                  <th className="py-3 px-4 font-bold">دوره انتخابی</th>
-                  <th className="py-3 px-4 font-bold">کد رهگیری</th>
-                  <th className="py-3 px-4 font-bold">وضعیت</th>
-                  <th className="py-3 px-4 font-bold text-center">عملیات</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                  <th className="py-3.5 px-4 text-center w-12">#</th>
+                  <th className="py-3.5 px-4">مشخصات دانشجو</th>
+                  <th className="py-3.5 px-4">کد ملی و تماس</th>
+                  <th className="py-3.5 px-4">عنوان دوره و مدرس</th>
+                  <th className="py-3.5 px-4 text-center">کد رهگیری</th>
+                  <th className="py-3.5 px-4 text-center">وضعیت</th>
+                  <th className="py-3.5 px-4 text-center print:hidden">عملیات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredEnrollments.map((enr) => (
-                  <tr key={enr.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-slate-900">
-                      {enr.user?.full_name || "بدون نام"}
-                      <span className="block text-[11px] text-slate-400 font-normal">
-                        {enr.user?.phone_number}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 font-mono">
-                      {enr.user?.national_id}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-800">
-                      {enr.course?.title_fa || enr.course?.title}
-                      <span className="block text-[11px] text-slate-400">
-                        {getInstructorName(enr.course)}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-700 dir-ltr text-right">
-                      {enr.tracking_code}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      {enr.status === "REGISTERED" && (
-                        <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-emerald-100">
-                          ثبت‌نام قطعی
-                        </span>
-                      )}
-                      {enr.status === "PENDING_PAYMENT" && (
-                        <span className="bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-amber-100">
-                          در انتظار بررسی
-                        </span>
-                      )}
-                      {enr.status === "COMPLETED" && (
-                        <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-blue-100">
-                          تکمیل دوره
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                {filteredEnrollments.map((enr, idx) => {
+                  const courseData = enr.course || {};
+                  const instructor = getInstructorName(courseData);
+                  const title = courseData.title_fa || courseData.title || "دوره تخصصی";
+                  const studentName = enr.user?.full_name || enr.full_name || "دانشجو";
+                  const nationalId = enr.user?.national_id || enr.national_id || "—";
+                  const phone = enr.user?.phone_number || enr.phone_number || "—";
+
+                  return (
+                    <tr key={enr.id || idx} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-4 text-center text-slate-400 font-mono">
+                        {toPersianDigits(idx + 1)}
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                        {studentName}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 space-y-0.5">
+                        <div className="font-mono">{toPersianDigits(nationalId)}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{phone}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <p className="font-semibold text-slate-800">{title}</p>
+                        <p className="text-[11px] text-slate-400">{instructor}</p>
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono text-blue-700 font-bold dir-ltr">
+                        {formatTrackingCode(enr.tracking_code)}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
                         <button
+                          type="button"
                           onClick={() => handleToggleStatus(enr.id, enr.status)}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-bold px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
-                          title="تغییر وضعیت پرونده"
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                            enr.status === "COMPLETED"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                              : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+                          }`}
                         >
-                          تغییر وضعیت
+                          {enr.status === "COMPLETED" ? "✓ تکمیل دوره" : "ثبت‌نام نهایی"}
                         </button>
+                      </td>
+                      <td className="py-3.5 px-4 text-center print:hidden">
                         <button
+                          type="button"
                           onClick={() =>
-                            handleDeleteEnrollment(
-                              enr.id,
-                              enr.user?.full_name,
-                              enr.course?.title_fa || enr.course?.title
-                            )
+                            handleDeleteEnrollment(enr.id, studentName, title)
                           }
-                          className="text-xs text-red-600 hover:text-red-800 font-bold px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
-                          title="حذف دانشجو از دوره"
+                          className="bg-red-50 hover:bg-red-100 text-red-600 text-[11px] font-semibold py-1 px-3 rounded-lg transition-colors"
                         >
                           حذف از دوره
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* TAB 2: Courses Management */}
+      {/* TAB 2: Analytics Dashboard */}
+      {activeTab === "ANALYTICS" && (
+        <div className="space-y-6 mb-12">
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm">
+            <h2 className="text-base font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <AwardIcon className="w-5 h-5 text-blue-600" />
+              <span>توزیع ثبت‌نام و ظرفیت دوره‌های آموزشی ترم پاییز ۱۴۰۴</span>
+            </h2>
+
+            <div className="space-y-5">
+              {analyticsData.coursesBreakdown.map((c, idx) => {
+                const percent = Math.min(
+                  Math.round((c.enrolledCount / c.capacity) * 100),
+                  100
+                );
+                return (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                      <div>
+                        <span className="font-bold text-slate-900 text-sm">
+                          {c.title}
+                        </span>
+                        <span className="text-slate-500 mr-2">
+                          (مدرس: {c.instructor})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-slate-600">
+                          {toPersianDigits(c.enrolledCount)} از {toPersianDigits(c.capacity)} دانشجو ({toPersianDigits(percent)}٪ ظرفیت)
+                        </span>
+                        <span className="font-bold text-blue-700">
+                          {formatPriceToman(c.enrolledCount * c.price)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full transition-all duration-500"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: Courses Management */}
       {activeTab === "COURSES" && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm mb-12">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <BookOpenIcon className="w-5 h-5 text-blue-600" />
-              <span>فهرست دوره‌های آموزشی فعال</span>
+              <span>فهرست دوره‌های آموزشی تعریف‌شده</span>
             </h2>
             <button
               onClick={() => setActiveTab("NEW_COURSE")}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3.5 rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-xs"
             >
-              <SparklesIcon className="w-4 h-4" />
-              <span>+ افزودن دوره جدید</span>
+              + تعریف دوره جدید
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {allCourses.map((c) => (
               <div
-                key={c.id || c.course_number}
-                className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between"
+                key={c.id}
+                className="bg-slate-50 rounded-2xl p-5 border border-slate-200/80 flex flex-col justify-between"
               >
-                <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="bg-blue-50 text-blue-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-blue-100">
-                      {c.units} ({c.level})
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-md">
+                      {c.units} • {c.level}
                     </span>
-                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                      فعال در ترم
+                    <span className="text-slate-500 font-mono">
+                      #{toPersianDigits(c.course_number || c.id)}
                     </span>
                   </div>
-
-                  <h3 className="text-sm font-bold text-slate-900 mb-1">
+                  <h3 className="text-sm font-bold text-slate-900">
                     {c.title_fa || c.title}
                   </h3>
-                  <p className="text-xs text-slate-500 mb-3">
+                  <p className="text-xs text-slate-500">
                     مدرس: {getInstructorName(c)}
                   </p>
-                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-4">
-                    {c.description}
+                  <p className="text-xs font-bold text-blue-900">
+                    {formatPriceToman(c.price)}
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                <div className="flex gap-2 pt-3 border-t border-slate-200">
                   <Link
-                    href={`/courses/${c.course_number || c.id || 1}`}
-                    className="text-xs text-blue-600 font-bold hover:underline"
+                    href={`/courses/${c.course_number || c.id}`}
+                    className="flex-1 bg-white hover:bg-slate-100 text-slate-700 text-center py-2 rounded-xl text-xs font-semibold border border-slate-200 transition-colors"
                   >
-                    مشاهده سرفصل‌ها
+                    مشاهده سرفصل
                   </Link>
-
                   <button
-                    onClick={() => handleDeleteCourse(c.id || c.course_number)}
-                    className="text-xs text-red-600 hover:text-red-800 font-medium px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                    onClick={() => handleDeleteCourse(c.id)}
+                    className="bg-red-50 hover:bg-red-100 text-red-600 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
                   >
-                    حذف دوره
+                    حذف
                   </button>
                 </div>
               </div>
@@ -686,38 +906,36 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB 3: Add New Course Form */}
+      {/* TAB 4: New Course Form */}
       {activeTab === "NEW_COURSE" && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm mb-12">
-          <div className="mb-6 pb-4 border-b border-slate-100">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <SparklesIcon className="w-5 h-5 text-blue-600" />
-              <span>تعریف و ایجاد دوره آموزشی جدید</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              مشخصات دوره بلافاصله در پایگاه داده ذخیره شده و در تمام صفحات عمومی و فرم ثبت‌نام قرار می‌گیرد.
-            </p>
-          </div>
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm max-w-3xl mb-12">
+          <h2 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
+            <SparklesIcon className="w-5 h-5 text-blue-600" />
+            <span>تعریف و ایجاد دوره تخصصی جدید</span>
+          </h2>
+          <p className="text-xs text-slate-500 mb-6">
+            دوره جدید بلافاصله در فهرست دوره‌ها، جستجو و جدول ثبت‌نام قرار خواهد گرفت.
+          </p>
 
           {courseSuccessMsg && (
-            <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-              <CheckCircleIcon className="w-5 h-5 text-emerald-600 shrink-0" />
+            <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+              <CheckCircleIcon className="w-4 h-4 shrink-0" />
               <span>{courseSuccessMsg}</span>
             </div>
           )}
 
           {courseErrorMsg && (
-            <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold flex items-center gap-2">
+            <div className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
               <span>{courseErrorMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleCreateCourseSubmit} className="space-y-5">
+          <form onSubmit={handleCreateCourseSubmit} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  نام فارسی درس *
+                <label className="block font-semibold text-slate-700 mb-1">
+                  عنوان فارسی دوره *
                 </label>
                 <input
                   type="text"
@@ -726,30 +944,31 @@ export default function AdminDashboard() {
                   onChange={(e) =>
                     setNewCourse({ ...newCourse, title_fa: e.target.value })
                   }
-                  placeholder="مثال: یادگیری عمیق و شبکه‌های عصبی"
-                  className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="مثال: یادگیری عمیق و بینایی ماشین"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  نام انگلیسی درس *
+                <label className="block font-semibold text-slate-700 mb-1">
+                  عنوان انگلیسی دوره
                 </label>
                 <input
                   type="text"
-                  required
                   value={newCourse.title_en}
                   onChange={(e) =>
                     setNewCourse({ ...newCourse, title_en: e.target.value })
                   }
-                  placeholder="Deep Learning & Neural Networks"
-                  className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all dir-ltr"
+                  placeholder="Deep Learning & Computer Vision"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden dir-ltr text-right"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  نام و مرتبه استاد مدرس *
+                <label className="block font-semibold text-slate-700 mb-1">
+                  نام استاد / مدرس *
                 </label>
                 <input
                   type="text"
@@ -761,28 +980,13 @@ export default function AdminDashboard() {
                       instructor_name: e.target.value,
                     })
                   }
-                  placeholder="مثال: دکتر احسان ناظرفرد"
-                  className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="مثال: دکتر مرتضی ذاکری"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  گرایش و رشته
-                </label>
-                <input
-                  type="text"
-                  value={newCourse.field}
-                  onChange={(e) =>
-                    setNewCourse({ ...newCourse, field: e.target.value })
-                  }
-                  placeholder="مهندسی کامپیوتر – هوش مصنوعی"
-                  className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                <label className="block font-semibold text-slate-700 mb-1">
                   مقطع تحصیلی
                 </label>
                 <select
@@ -790,49 +994,79 @@ export default function AdminDashboard() {
                   onChange={(e) =>
                     setNewCourse({ ...newCourse, level: e.target.value })
                   }
-                  className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 >
                   <option value="کارشناسی">کارشناسی</option>
                   <option value="کارشناسی ارشد">کارشناسی ارشد</option>
-                  <option value="دکتری">دکتری</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  پیش‌نیازها
+                <label className="block font-semibold text-slate-700 mb-1">
+                  تعداد واحد
+                </label>
+                <select
+                  value={newCourse.units}
+                  onChange={(e) =>
+                    setNewCourse({ ...newCourse, units: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
+                >
+                  <option value="۳ واحد">۳ واحد</option>
+                  <option value="۲ واحد">۲ واحد</option>
+                  <option value="۴ واحد">۴ واحد</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  شهریه مصوب (تومان)
                 </label>
                 <input
-                  type="text"
-                  value={newCourse.prerequisites}
+                  type="number"
+                  value={newCourse.price}
                   onChange={(e) =>
-                    setNewCourse({ ...newCourse, prerequisites: e.target.value })
+                    setNewCourse({ ...newCourse, price: e.target.value })
                   }
-                  placeholder="مثال: یادگیری ماشین یا برنامه‌نویسی پایتون"
-                  className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden dir-ltr text-right"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  ظرفیت کلاس (نفر)
+                </label>
+                <input
+                  type="number"
+                  value={newCourse.capacity}
+                  onChange={(e) =>
+                    setNewCourse({ ...newCourse, capacity: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden dir-ltr text-right"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                توضیحات و معرفی کامل دوره *
+              <label className="block font-semibold text-slate-700 mb-1">
+                توضیحات و شرح دوره
               </label>
               <textarea
-                required
                 rows={3}
                 value={newCourse.description}
                 onChange={(e) =>
                   setNewCourse({ ...newCourse, description: e.target.value })
                 }
-                placeholder="شرح اهداف، کاربردها و ساختار دوره آموزشی..."
-                className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="شرح اهداف، کاربردهای صنعتی و مهارت‌های کسب‌شده در این دوره..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                سرفصل‌ها و مباحث جلسات (هر جلسه در یک خط)
+              <label className="block font-semibold text-slate-700 mb-1">
+                عناوین سرفصل‌های آموزشی (هر جلسه در یک خط)
               </label>
               <textarea
                 rows={4}
@@ -840,31 +1074,23 @@ export default function AdminDashboard() {
                 onChange={(e) =>
                   setNewCourse({ ...newCourse, topicsText: e.target.value })
                 }
-                placeholder="مقدمه بر شبکه‌های عصبی عمیق&#10;شبکه‌های پیچشی (CNN)&#10;شبکه‌های بازگشتی (RNN و LSTM)&#10;معماری ترنسفورمرها و مدل‌های زبانی"
-                className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all leading-relaxed"
+                placeholder="مقدمه و تعاریف پایه&#10;معماری و ساختار مدل‌ها&#10;پیاده‌سازی پروژه‌های عملی"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
               />
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex gap-3">
+            <div className="pt-4 flex gap-3">
               <button
                 type="submit"
                 disabled={isSubmittingCourse}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all text-xs flex items-center gap-2 disabled:opacity-50"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-sm disabled:opacity-50"
               >
-                {isSubmittingCourse ? (
-                  <span>در حال ثبت دوره در دیتابیس...</span>
-                ) : (
-                  <>
-                    <SparklesIcon className="w-4 h-4" />
-                    <span>ثبت نهایی و انتشار دوره</span>
-                  </>
-                )}
+                {isSubmittingCourse ? "در حال ایجاد دوره..." : "ثبت و انتشار دوره"}
               </button>
-
               <button
                 type="button"
                 onClick={() => setActiveTab("COURSES")}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-3 px-5 rounded-xl transition-all"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-xl transition-all"
               >
                 انصراف
               </button>
@@ -874,49 +1100,4 @@ export default function AdminDashboard() {
       )}
     </MainLayout>
   );
-}
-
-function getMockEnrollments() {
-  return [
-    {
-      id: "enr-1",
-      tracking_code: "AUT-1404-9E3A11",
-      status: "REGISTERED",
-      final_grade: 18.5,
-      user: {
-        full_name: "محمدامین حسینی",
-        national_id: "0018472910",
-        phone_number: "09121112233",
-        email: "m.hosseini@gmail.com",
-        university: "دانشگاه صنعتی امیرکبیر",
-      },
-      course: {
-        title_fa: "یادگیری ماشین",
-        course_number: 1,
-        instructor_name: "دکتر احسان ناظرفرد",
-        units: "۳ واحد",
-      },
-      created_at: "۱۴۰۴/۰۶/۱۵",
-    },
-    {
-      id: "enr-2",
-      tracking_code: "AUT-1404-5F82C4",
-      status: "REGISTERED",
-      final_grade: null,
-      user: {
-        full_name: "سارا رضوانی",
-        national_id: "0029384712",
-        phone_number: "09351234567",
-        email: "s.rezvani@yahoo.com",
-        university: "دانشگاه تهران",
-      },
-      course: {
-        title_fa: "آزمون و تضمین کیفیت نرم‌افزار",
-        course_number: 2,
-        instructor_name: "دکتر مرتضی ذاکری",
-        units: "۳ واحد",
-      },
-      created_at: "۱۴۰۴/۰۶/۱۶",
-    },
-  ];
 }
