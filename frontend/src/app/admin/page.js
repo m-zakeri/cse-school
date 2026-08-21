@@ -424,22 +424,25 @@ export default function AdminDashboard() {
     });
   }, [enrollments, searchQuery, statusFilter, courseFilter]);
 
-  // Analytics Computation
+  // Analytics Computation with Strict 1-to-1 Course Matching
   const analyticsData = useMemo(() => {
     const courseBreakdown = allCourses.map((c) => {
       const cNum = Number(c.course_number || c.id) || null;
       const cIdStr = String(c.id || "").toLowerCase();
-      const cTitle = (c.title_fa || c.title || "").trim().toLowerCase();
+      const cTitle = (c.title_fa || c.title || "").trim();
 
       const matchingEnrollments = enrollments.filter((enr) => {
         const enrCourse = enr.course || {};
         const enrNum = Number(enrCourse.course_number) || null;
         const enrId = String(enrCourse.id || enr.course_id || "").toLowerCase();
-        const enrTitle = (enrCourse.title_fa || enrCourse.title || "").trim().toLowerCase();
+        const enrTitle = (enrCourse.title_fa || enrCourse.title || "").trim();
 
+        // 1. Strict exact course number match (e.g. 1 === 1)
         if (cNum && enrNum && cNum === enrNum) return true;
-        if (cIdStr && enrId && (cIdStr === enrId || enrId.includes(cIdStr))) return true;
-        if (cTitle && enrTitle && (cTitle === enrTitle || cTitle.includes(enrTitle) || enrTitle.includes(cTitle))) return true;
+        // 2. Strict exact UUID match
+        if (cIdStr && enrId && cIdStr === enrId) return true;
+        // 3. Strict exact title match
+        if (cTitle && enrTitle && cTitle === enrTitle) return true;
         return false;
       });
 
@@ -448,6 +451,7 @@ export default function AdminDashboard() {
 
       return {
         id: c.id,
+        course_number: c.course_number,
         title: c.title_fa || c.title,
         instructor: getInstructorName(c),
         enrolledCount,
