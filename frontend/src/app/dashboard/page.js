@@ -53,32 +53,17 @@ export default function StudentDashboard() {
       try {
         if (currentUser.national_id) {
           const enrs = await apiGetUserEnrollments(currentUser.national_id);
-          if (enrs && enrs.length > 0) {
+          if (Array.isArray(enrs)) {
             setUserEnrollments(enrs);
             setIsLoading(false);
             return;
           }
         }
       } catch (err) {
-        console.log("Using default registered course view:", err);
+        console.log("Could not load dynamic user enrollments:", err);
       }
 
-      setUserEnrollments([
-        {
-          id: "mock-1",
-          course: courses[0],
-          status: "REGISTERED",
-          tracking_code: "AUT-1404-E7A912",
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "mock-2",
-          course: courses[1],
-          status: "REGISTERED",
-          tracking_code: "AUT-1404-B3F401",
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      setUserEnrollments([]);
       setIsLoading(false);
     }
 
@@ -224,60 +209,81 @@ export default function StudentDashboard() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {userEnrollments.map((enr, idx) => {
-            const courseData = enr.course || courses[idx % courses.length];
-            const instructorName = getInstructorName(courseData);
-            return (
-              <div
-                key={enr.id || idx}
-                className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm flex flex-col justify-between"
-              >
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between items-center">
-                    <span className="bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-100">
-                      ثبت‌نام نهایی
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      {enr.tracking_code}
-                    </span>
+        {userEnrollments.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-8 sm:p-12 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+              <BookOpenIcon className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              هنوز دوره‌ای در این ترم اخذ نکرده‌اید
+            </h3>
+            <p className="text-xs text-slate-500 mb-6">
+              جهت مشاهده فهرست دوره‌های فعال ترم پاییز ۱۴۰۴ و ثبت‌نام روی دکمه زیر کلیک نمایید.
+            </p>
+            <Link
+              href="/register"
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-3 px-6 rounded-xl transition-all shadow-sm"
+            >
+              <UserPlusIcon className="w-4 h-4" />
+              <span>انتخاب و اخذ دوره‌های آموزشی</span>
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {userEnrollments.map((enr, idx) => {
+              const courseData = enr.course || courses[idx % courses.length];
+              const instructorName = getInstructorName(courseData);
+              return (
+                <div
+                  key={enr.id || idx}
+                  className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm flex flex-col justify-between"
+                >
+                  <div className="space-y-3 mb-6">
+                    <div className="flex justify-between items-center">
+                      <span className="bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-100">
+                        ثبت‌نام نهایی
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {enr.tracking_code}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-slate-900">
+                      {courseData?.title_fa || courseData?.title}
+                    </h3>
+
+                    <p className="text-xs text-slate-500">
+                      مدرس: {instructorName} • {courseData?.units || "۳ واحد"}
+                    </p>
+
+                    <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 space-y-1 border border-slate-100">
+                      <p>• زمان برگزاری: یکشنبه و سه‌شنبه ۱۶:۰۰ الی ۱۷:۳۰</p>
+                      <p>• شیوه برگزاری: سامانه آموزش مجازی ادوبی کانکت دانشگاه</p>
+                    </div>
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-900">
-                    {courseData?.title_fa || courseData?.title}
-                  </h3>
-
-                  <p className="text-xs text-slate-500">
-                    مدرس: {instructorName} • {courseData?.units || "۳ واحد"}
-                  </p>
-
-                  <div className="bg-slate-50 rounded-xl p-3 text-xs text-slate-600 space-y-1 border border-slate-100">
-                    <p>• زمان برگزاری: یکشنبه و سه‌شنبه ۱۶:۰۰ الی ۱۷:۳۰</p>
-                    <p>• شیوه برگزاری: سامانه آموزش مجازی ادوبی کانکت دانشگاه</p>
+                  <div className="flex gap-2.5 pt-4 border-t border-slate-100">
+                    <a
+                      href="https://lms.aut.ac.ir"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <ExternalLinkIcon className="w-3.5 h-3.5" />
+                      <span>ورود به کلاس آنلاین</span>
+                    </a>
+                    <Link
+                      href={`/courses/${courseData?.course_number || courseData?.id || 1}`}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2.5 px-3 rounded-xl transition-all"
+                    >
+                      سرفصل‌ها
+                    </Link>
                   </div>
                 </div>
-
-                <div className="flex gap-2.5 pt-4 border-t border-slate-100">
-                  <a
-                    href="https://lms.aut.ac.ir"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all"
-                  >
-                    <ExternalLinkIcon className="w-3.5 h-3.5" />
-                    <span>ورود به کلاس آنلاین</span>
-                  </a>
-                  <Link
-                    href={`/courses/${courseData?.course_number || courseData?.id || 1}`}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-2.5 px-3 rounded-xl transition-all"
-                  >
-                    سرفصل‌ها
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </MainLayout>
   );
