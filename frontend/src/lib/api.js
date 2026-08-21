@@ -176,28 +176,7 @@ export async function apiLogin(identifier, password) {
       };
     }
 
-    // 3. Demo student sample account
-    if (cleanId === "0123456789" || cleanId === "student@aut.ac.ir") {
-      const demoStudent = {
-        id: "usr-demo-0123456789",
-        national_id: "0123456789",
-        phone_number: "09123456789",
-        email: "student@aut.ac.ir",
-        full_name: "حسین زارعی‌نژاد (دانشجو)",
-        role: "STUDENT",
-        university: "دانشگاه صنعتی امیرکبیر",
-        education_level: "bachelor_student",
-        field_of_study: "مهندسی کامپیوتر",
-      };
-      saveLocalUser(demoStudent);
-      return {
-        access_token: "mock-student-token",
-        token_type: "bearer",
-        user: demoStudent,
-      };
-    }
-
-    // 4. Reject unknown user
+    // 3. Reject unknown user
     throw new Error(
       "کاربری با این مشخصات یافت نشد. لطفاً ابتدا از تب «ثبت‌نام جدید» در سامانه ثبت‌نام نمایید."
     );
