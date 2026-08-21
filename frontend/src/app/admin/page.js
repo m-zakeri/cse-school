@@ -30,6 +30,7 @@ import {
 } from "@/components/Icons";
 import {
   toPersianDigits,
+  toEnglishDigits,
   formatPriceToman,
   formatTrackingCode,
 } from "@/lib/formatters";
@@ -161,32 +162,41 @@ export default function AdminDashboard() {
         loadData();
         return;
       }
-      setLoginError("کلمه عبور مدیر سیستم نادرست است.");
+      setLoginError("پست الکترونیکی یا کلمه عبور مدیریت نادرست است.");
     } finally {
       setIsLoggingIn(false);
     }
   };
 
-  const handleToggleStatus = async (enrId, currentStatus) => {
-    const nextStatus =
-      currentStatus === "REGISTERED" ? "COMPLETED" : "REGISTERED";
+  const handleStatusChange = async (enrId, newStatus) => {
     try {
-      await apiUpdateEnrollmentStatus(enrId, nextStatus);
+      await apiUpdateEnrollmentStatus(enrId, newStatus);
     } catch {}
     setEnrollments((prev) =>
       prev.map((item) =>
-        item.id === enrId ? { ...item, status: nextStatus } : item
+        item.id === enrId ? { ...item, status: newStatus } : item
       )
     );
   };
 
-  const handleDeleteEnrollment = (enrId, studentName, courseTitle) => {
+  const handleGradeChange = async (enrId, currentStatus, newGrade) => {
+    try {
+      await apiUpdateEnrollmentStatus(enrId, currentStatus, newGrade);
+    } catch {}
+    setEnrollments((prev) =>
+      prev.map((item) =>
+        item.id === enrId ? { ...item, final_grade: newGrade } : item
+      )
+    );
+  };
+
+  const handleDeleteEnrollment = (enrId) => {
     setModalConfig({
       isOpen: true,
       type: "danger",
       title: "تأیید حذف پرونده دانشجو",
-      message: `آیا از حذف پرونده ثبت‌نام «${studentName || "دانشجو"}» از دوره «${courseTitle || ""}» اطمینان دارید؟`,
-      confirmText: "بله، حذف از دوره",
+      message: "آیا از حذف این پرونده ثبت‌نام اطمینان دارید؟ این عملیات غیرقابل بازگشت است.",
+      confirmText: "بله، حذف پرونده",
       cancelText: "انصراف",
       isConfirm: true,
       onConfirm: async () => {
@@ -242,10 +252,10 @@ export default function AdminDashboard() {
         title_fa: "",
         title_en: "",
         instructor_name: "",
-        field: "مهندسی کامپیوتر – نرم‌افزار",
+        field: "مهندسی نرم‌افزار",
         type: "اختصاصی",
-        units: "۳ واحد",
-        level: "کارشناسی",
+        units: 3,
+        level: "کارشناسی ارشد",
         course_level: "متوسط",
         price: 2500000,
         capacity: 30,
@@ -318,23 +328,30 @@ export default function AdminDashboard() {
     ];
 
     const rows = filteredEnrollments.map((enr, idx) => {
-      const courseData = enr.course || {};
-      const instructor = getInstructorName(courseData);
-      const title = courseData.title_fa || courseData.title || "";
-      const studentName = enr.user?.full_name || enr.full_name || "دانشجو";
-      const nationalId = enr.user?.national_id || enr.national_id || "";
-      const phone = enr.user?.phone_number || enr.phone_number || "";
-      const email = enr.user?.email || enr.email || "";
-      const uni = enr.user?.university || enr.university || "دانشگاه صنعتی امیرکبیر";
-      const tracking = enr.tracking_code || "";
-      const status = enr.status === "COMPLETED" ? "تکمیل شده" : "ثبت‌نام نهایی";
+      const fullName = enr.user?.full_name || enr.full_name || "—";
+      const nationalId = enr.user?.national_id || enr.national_id || "—";
+      const phone = enr.user?.phone_number || enr.phone_number || "—";
+      const email = enr.user?.email || enr.email || "—";
+      const uni = enr.user?.university || "دانشگاه صنعتی امیرکبیر";
+      const title = enr.course?.title_fa || enr.course?.title || "دوره آموزشی";
+      const instructor =
+        enr.course?.instructor_name || enr.course?.instructor || "عضو هیئت علمی";
+      const tracking = enr.tracking_code || "—";
+      const status =
+        enr.status === "REGISTERED"
+          ? "در انتظار بررسی"
+          : enr.status === "APPROVED"
+          ? "تأیید شده / فعال"
+          : enr.status === "COMPLETED"
+          ? "تکمیل شده"
+          : "رد شده / لغو";
       const date = enr.created_at
         ? new Date(enr.created_at).toLocaleDateString("fa-IR")
-        : "۱۴۰۴/۰۶/۲۰";
+        : "—";
 
       return [
         idx + 1,
-        `"${studentName}"`,
+        `"${fullName}"`,
         `"${nationalId}"`,
         `"${phone}"`,
         `"${email}"`,
@@ -369,20 +386,65 @@ export default function AdminDashboard() {
   };
 
   const filteredEnrollments = useMemo(() => {
-    return enrollments.filter((item) => {
-      const matchesSearch =
-        item.user?.full_name?.includes(searchQuery) ||
-        item.user?.national_id?.includes(searchQuery) ||
-        item.tracking_code?.includes(searchQuery) ||
-        item.course?.title_fa?.includes(searchQuery) ||
-        item.course?.title?.includes(searchQuery);
+    const cleanQuery = searchQuery.trim().toLowerCase();
+    const cleanDigitsQuery = toEnglishDigits(cleanQuery);
 
+    return enrollments.filter((item) => {
       const matchesStatus =
         statusFilter === "ALL" || item.status === statusFilter;
 
-      const cId = item.course?.course_number || item.course?.id;
+      const cId = item.course?.course_number || item.course?.id || item.course_id;
       const matchesCourse =
         courseFilter === "ALL" || String(cId) === String(courseFilter);
+
+      if (!cleanQuery) {
+        return matchesStatus && matchesCourse;
+      }
+
+      // Fields to match
+      const nationalId = toEnglishDigits(
+        item.user?.national_id || item.national_id || ""
+      );
+      const phone = toEnglishDigits(
+        item.user?.phone_number || item.phone_number || ""
+      );
+      const tracking = toEnglishDigits(
+        item.tracking_code || ""
+      ).toLowerCase();
+      const rawTracking = (item.tracking_code || "").toLowerCase();
+      const fullName = (
+        item.user?.full_name ||
+        item.full_name ||
+        ""
+      ).toLowerCase();
+      const email = (
+        item.user?.email ||
+        item.email ||
+        ""
+      ).toLowerCase();
+      const courseTitleFa = (
+        item.course?.title_fa ||
+        item.course?.title ||
+        ""
+      ).toLowerCase();
+      const instructor = (
+        item.course?.instructor_name ||
+        item.course?.instructor ||
+        ""
+      ).toLowerCase();
+
+      const matchesSearch =
+        fullName.includes(cleanQuery) ||
+        email.includes(cleanQuery) ||
+        courseTitleFa.includes(cleanQuery) ||
+        instructor.includes(cleanQuery) ||
+        rawTracking.includes(cleanQuery) ||
+        // Digit matching (support both Persian and English keyboard input)
+        (cleanDigitsQuery && (
+          nationalId.includes(cleanDigitsQuery) ||
+          phone.includes(cleanDigitsQuery) ||
+          tracking.includes(cleanDigitsQuery)
+        ));
 
       return matchesSearch && matchesStatus && matchesCourse;
     });
