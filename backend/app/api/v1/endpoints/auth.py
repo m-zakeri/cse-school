@@ -92,6 +92,9 @@ async def login(
     if not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="اطلاعات کاربری یا کلمه عبور وارد شده نادرست است.",
+        )
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
