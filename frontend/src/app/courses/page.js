@@ -23,7 +23,10 @@ export default function Courses() {
       try {
         const backendCourses = await apiGetCourses();
         if (backendCourses && backendCourses.length > 0) {
-          const formatted = backendCourses.map((c) => ({
+          const validCourses = backendCourses.filter(
+            (c) => c.title_fa && !c.title_fa.includes("?")
+          );
+          const formatted = validCourses.map((c) => ({
             id: c.course_number || c.id,
             title: c.title_fa,
             englishTitle: c.title_en,

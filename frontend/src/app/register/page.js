@@ -4,7 +4,11 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
-import { apiCreateBatchEnrollment, getLocalDynamicCourses } from "@/lib/api";
+import {
+  apiCreateBatchEnrollment,
+  getLocalDynamicCourses,
+  apiGetUserEnrollments,
+} from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import {
   UserPlusIcon,
@@ -13,14 +17,17 @@ import {
   ShieldCheckIcon,
   AcademicCapIcon,
   ChevronLeftIcon,
-  UsersIcon,
   BookOpenIcon,
+  SparklesIcon,
 } from "@/components/Icons";
 
 export default function Register() {
   const [isMounted, setIsMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [coursesList, setCoursesList] = useState(courses.filter((c) => c.id !== 5));
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
+  const [coursesList, setCoursesList] = useState(
+    courses.filter((c) => c.id !== 5)
+  );
 
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [agreeTerms, setAgreeTerms] = useState(true);
@@ -32,6 +39,25 @@ export default function Register() {
     setIsMounted(true);
     const user = getCurrentUser();
     setCurrentUser(user);
+
+    // Load active enrollments if user is logged in to prevent duplicate course pick
+    if (user?.national_id) {
+      apiGetUserEnrollments(user.national_id)
+        .then((enrs) => {
+          if (Array.isArray(enrs)) {
+            const ids = enrs
+              .map(
+                (e) =>
+                  e.course?.course_number ||
+                  e.course?.id ||
+                  e.course_id
+              )
+              .filter(Boolean);
+            setEnrolledCourseIds(ids);
+          }
+        })
+        .catch(() => {});
+    }
 
     // Dynamic courses loading
     const dynamic = getLocalDynamicCourses();
@@ -45,13 +71,28 @@ export default function Register() {
       }));
       const combined = [
         ...dynamicFormatted,
-        ...courses.filter((c) => c.id !== 5 && !dynamicFormatted.some((d) => d.id === c.id)),
+        ...courses.filter(
+          (c) =>
+            c.id !== 5 &&
+            !dynamicFormatted.some((d) => d.id === c.id)
+        ),
       ];
       setCoursesList(combined);
     }
   }, []);
 
+  const isCourseAlreadyEnrolled = (courseId) => {
+    return (
+      enrolledCourseIds.includes(courseId) ||
+      enrolledCourseIds.includes(String(courseId)) ||
+      enrolledCourseIds.includes(Number(courseId))
+    );
+  };
+
   const handleCourseToggle = (courseId) => {
+    if (isCourseAlreadyEnrolled(courseId)) {
+      return; // Cannot toggle an already enrolled course
+    }
     setSelectedCourses((prev) =>
       prev.includes(courseId)
         ? prev.filter((id) => id !== courseId)
@@ -61,8 +102,13 @@ export default function Register() {
 
   const handleEnrolledSubmit = async (e) => {
     e.preventDefault();
-    if (selectedCourses.length === 0) {
-      setErrorMessage("لطفاً حداقل یک دوره را برای اخذ انتخاب نمایید.");
+    // Filter out any accidentally picked existing course
+    const newCoursesToEnroll = selectedCourses.filter(
+      (id) => !isCourseAlreadyEnrolled(id)
+    );
+
+    if (newCoursesToEnroll.length === 0) {
+      setErrorMessage("لطفاً حداقل یک دوره جدید برای اخذ انتخاب نمایید.");
       return;
     }
     if (!agreeTerms) {
@@ -74,7 +120,7 @@ export default function Register() {
     setErrorMessage("");
 
     const payload = {
-      course_ids: selectedCourses,
+      course_ids: newCoursesToEnroll,
       national_id: currentUser.national_id,
       phone_number: currentUser.phone_number || "09120000000",
       email: currentUser.email || "student@aut.ac.ir",
@@ -87,20 +133,28 @@ export default function Register() {
     try {
       const enrollments = await apiCreateBatchEnrollment(payload);
       const primaryTracking =
-        enrollments[0]?.tracking_code || `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        enrollments[0]?.tracking_code ||
+        `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      // Update local enrolled list
+      setEnrolledCourseIds((prev) => [...prev, ...newCoursesToEnroll]);
 
       setSuccessData({
         trackingCode: primaryTracking,
-        coursesCount: selectedCourses.length,
+        coursesCount: newCoursesToEnroll.length,
         studentName: currentUser.full_name,
         nationalId: currentUser.national_id,
       });
     } catch {
       // Offline fallback
-      const fallbackTracking = `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const fallbackTracking = `AUT-1404-${Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase()}`;
+      setEnrolledCourseIds((prev) => [...prev, ...newCoursesToEnroll]);
       setSuccessData({
         trackingCode: fallbackTracking,
-        coursesCount: selectedCourses.length,
+        coursesCount: newCoursesToEnroll.length,
         studentName: currentUser.full_name,
         nationalId: currentUser.national_id,
       });
@@ -158,15 +212,21 @@ export default function Register() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-slate-500">نام دانشجو:</span>
-              <span className="font-bold text-slate-800">{successData.studentName}</span>
+              <span className="font-bold text-slate-800">
+                {successData.studentName}
+              </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-slate-500">کد ملی:</span>
-              <span className="font-bold font-mono text-slate-900">{successData.nationalId}</span>
+              <span className="font-bold font-mono text-slate-900">
+                {successData.nationalId}
+              </span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-              <span className="text-slate-500">تعداد دوره‌های اخذ شده:</span>
-              <span className="font-bold text-emerald-700">{successData.coursesCount} دوره</span>
+              <span className="text-slate-500">تعداد دوره‌های جدید اخذ شده:</span>
+              <span className="font-bold text-emerald-700">
+                {successData.coursesCount} دوره
+              </span>
             </div>
           </div>
 
@@ -185,7 +245,7 @@ export default function Register() {
               }}
               className="inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-3 px-6 rounded-xl transition-all"
             >
-              اخذ دوره بیشتر
+              اخذ دوره‌های دیگر
             </button>
           </div>
         </div>
@@ -214,8 +274,13 @@ export default function Register() {
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded-xl px-3 py-2 self-start sm:self-auto">
-                  <p>اطلاعات هویتی شما ذخیره شده است؛ کافیست دوره‌ها را انتخاب نمایید.</p>
+                <div className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 self-start sm:self-auto flex items-center gap-2">
+                  <SparklesIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    {enrolledCourseIds.length > 0
+                      ? `شما قبلاً ${enrolledCourseIds.length} دوره اخذ کرده‌اید.`
+                      : "اطلاعات هویتی شما ثبت است؛ کافیست دوره‌ها را انتخاب کنید."}
+                  </span>
                 </div>
               </div>
             </div>
@@ -258,7 +323,7 @@ export default function Register() {
               فهرست دوره‌های ارائه شده در ترم
             </h2>
             <p className="text-xs text-slate-500 mb-6 pb-3 border-b border-slate-100">
-              دوره‌های مورد نظر خود را با زدن تیک انتخاب نمایید.
+              دوره‌های مورد نظر خود را با زدن تیک انتخاب نمایید (دوره‌هایی که قبلاً اخذ نموده‌اید غیرفعال شده‌اند).
             </p>
 
             {errorMessage && (
@@ -268,36 +333,64 @@ export default function Register() {
               </div>
             )}
 
-            <form onSubmit={currentUser ? handleEnrolledSubmit : (e) => e.preventDefault()} className="space-y-6">
+            <form
+              onSubmit={
+                currentUser ? handleEnrolledSubmit : (e) => e.preventDefault()
+              }
+              className="space-y-6"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {coursesList.map((course) => {
+                  const alreadyEnrolled = isCourseAlreadyEnrolled(course.id);
                   const isSelected = selectedCourses.includes(course.id);
+
                   return (
                     <label
                       key={course.id}
-                      onClick={() => handleCourseToggle(course.id)}
-                      className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${
-                        isSelected
-                          ? "border-blue-600 bg-blue-50/60 shadow-sm"
-                          : "border-slate-200/80 hover:border-blue-300 hover:bg-slate-50/80"
+                      onClick={() => !alreadyEnrolled && handleCourseToggle(course.id)}
+                      className={`flex items-start gap-3.5 p-4 rounded-2xl border transition-all ${
+                        alreadyEnrolled
+                          ? "border-emerald-200 bg-emerald-50/40 opacity-80 cursor-default"
+                          : isSelected
+                          ? "border-blue-600 bg-blue-50/60 shadow-sm cursor-pointer"
+                          : "border-slate-200/80 hover:border-blue-300 hover:bg-slate-50/80 cursor-pointer"
                       }`}
                     >
                       <input
                         type="checkbox"
-                        checked={isSelected}
+                        disabled={alreadyEnrolled}
+                        checked={alreadyEnrolled || isSelected}
                         onChange={() => {}}
-                        className="mt-1 text-blue-600 rounded focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                        className={`mt-1 rounded w-4 h-4 ${
+                          alreadyEnrolled
+                            ? "text-emerald-600 cursor-default"
+                            : "text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        }`}
                       />
                       <div className="flex-1">
                         <div className="flex justify-between items-start">
-                          <p className="text-xs font-bold text-slate-900">{course.title}</p>
-                          <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                            {course.units}
-                          </span>
+                          <p className="text-xs font-bold text-slate-900">
+                            {course.title}
+                          </p>
+                          {alreadyEnrolled ? (
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                              <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>قبلاً اخذ شده</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                              {course.units}
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
                           مدرس: {course.instructor} • سطح: {course.level}
                         </p>
+                        {alreadyEnrolled && (
+                          <p className="text-[10px] text-emerald-700 font-medium mt-1">
+                            این دوره در برنامه درسی پرتال شما قرار دارد.
+                          </p>
+                        )}
                       </div>
                     </label>
                   );
@@ -315,9 +408,15 @@ export default function Register() {
                       onChange={(e) => setAgreeTerms(e.target.checked)}
                       className="text-blue-600 rounded focus:ring-blue-500 w-4 h-4 cursor-pointer"
                     />
-                    <label htmlFor="terms_agree" className="text-xs text-slate-600 cursor-pointer">
+                    <label
+                      htmlFor="terms_agree"
+                      className="text-xs text-slate-600 cursor-pointer"
+                    >
                       با{" "}
-                      <Link href="/terms" className="text-blue-600 font-semibold hover:underline">
+                      <Link
+                        href="/terms"
+                        className="text-blue-600 font-semibold hover:underline"
+                      >
                         آیین‌نامه و شرایط و مقررات دوره‌ها
                       </Link>{" "}
                       موافقت کامل دارم.
@@ -334,7 +433,12 @@ export default function Register() {
                     ) : (
                       <>
                         <CheckCircleIcon className="w-4 h-4" />
-                        <span>ثبت نهایی و اخذ {selectedCourses.length > 0 ? `(${selectedCourses.length} دوره)` : "دوره‌ها"}</span>
+                        <span>
+                          ثبت نهایی و اخذ{" "}
+                          {selectedCourses.length > 0
+                            ? `(${selectedCourses.length} دوره جدید)`
+                            : "دوره‌ها"}
+                        </span>
                       </>
                     )}
                   </button>

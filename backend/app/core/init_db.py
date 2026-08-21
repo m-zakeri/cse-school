@@ -500,6 +500,15 @@ async def init_db(session: AsyncSession) -> None:
                     sessions_count=t_item.get("sessions_count", 1),
                 )
                 session.add(topic)
+        else:
+            # Update existing course with clean UTF-8 data
+            for k, v in c_data.items():
+                setattr(course, k, v)
+            if inst:
+                course.instructor_id = inst.id
+            if term:
+                course.term_id = term.id
+            logger.info(f"Course '{course.title_fa}' updated with clean UTF-8 data.")
 
     # 5. Check and Seed Initial Superadmin / Admin User
     admin_email = os.getenv("FIRST_SUPERUSER_EMAIL", "admin@aut.ac.ir")

@@ -30,7 +30,12 @@ export function getLocalDynamicCourses() {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(DYNAMIC_COURSES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    return list.filter((c) => {
+      const title = c.title_fa || c.title || "";
+      const inst = c.instructor_name || c.instructor || "";
+      return !title.includes("?") && !inst.includes("?");
+    });
   } catch {
     return [];
   }
