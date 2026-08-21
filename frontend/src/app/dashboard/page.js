@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import MainLayout from "@/components/Layout/MainLayout";
 import { getCurrentUser, clearAuthSession, updateAuthUser } from "@/lib/auth";
 import { apiGetUserEnrollments, apiDropEnrollment, apiUpdateUserProfile } from "@/lib/api";
@@ -40,6 +41,7 @@ function getInstructorName(course) {
 }
 
 export default function StudentDashboard() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [user, setUser] = useState(null);
   const [userEnrollments, setUserEnrollments] = useState([]);
@@ -94,8 +96,12 @@ export default function StudentDashboard() {
 
     async function loadData() {
       try {
-        if (currentUser.national_id) {
-          const enrs = await apiGetUserEnrollments(currentUser.national_id);
+        const identifier =
+          currentUser.national_id ||
+          currentUser.phone_number ||
+          currentUser.email;
+        if (identifier) {
+          const enrs = await apiGetUserEnrollments(identifier);
           if (Array.isArray(enrs)) {
             setUserEnrollments(enrs);
             setIsLoading(false);
@@ -116,7 +122,7 @@ export default function StudentDashboard() {
   const handleLogout = () => {
     clearAuthSession();
     setUser(null);
-    window.location.href = "/courses";
+    router.push("/courses");
   };
 
   const handleDropCourse = (enrollment) => {

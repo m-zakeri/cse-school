@@ -44,6 +44,7 @@ jobs:
           cd frontend
           npm run build
           touch out/.nojekyll
+          cp out/index.html out/404.html
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3

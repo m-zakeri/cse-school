@@ -9,6 +9,7 @@ const basePath = isExport && !isRootPages && repo ? `/${repo}` : "";
 
 const nextConfig = {
   output: isExport ? "export" : "standalone",
+  trailingSlash: true,
   basePath: basePath || undefined,
   assetPrefix: basePath || undefined,
   env: {

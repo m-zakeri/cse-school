@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { getCurrentUser, clearAuthSession } from "@/lib/auth";
 import { useTheme } from "@/components/UI/ThemeProvider";
 import {
@@ -14,6 +14,7 @@ import {
 
 const Header = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState(null);
   const { theme, toggleTheme, isDark, isMounted: themeMounted } = useTheme();
 
@@ -32,7 +33,7 @@ const Header = () => {
   const handleLogout = () => {
     clearAuthSession();
     setCurrentUser(null);
-    window.location.href = "/courses";
+    router.push("/courses");
   };
 
   const getBreadcrumb = () => {
