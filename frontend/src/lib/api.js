@@ -150,3 +150,9 @@ export async function apiUpdateEnrollmentStatus(enrollmentId, status, finalGrade
     body: JSON.stringify({ status, final_grade: finalGrade }),
   });
 }
+
+export async function apiDeleteEnrollmentAdmin(enrollmentId) {
+  return await fetchFromAPI(`/enrollments/admin/${enrollmentId}`, {
+    method: "DELETE",
+  });
+}

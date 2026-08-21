@@ -7,6 +7,7 @@ import { getCurrentUser, saveAuthSession, clearAuthSession } from "@/lib/auth";
 import {
   apiGetAllEnrollmentsAdmin,
   apiUpdateEnrollmentStatus,
+  apiDeleteEnrollmentAdmin,
   apiCreateCourse,
   apiDeleteCourse,
   getLocalDynamicCourses,
@@ -163,6 +164,20 @@ export default function AdminDashboard() {
         item.id === enrId ? { ...item, status: nextStatus } : item
       )
     );
+  };
+
+  const handleDeleteEnrollment = async (enrId, studentName, courseTitle) => {
+    const confirmed = window.confirm(
+      `آیا از حذف پرونده ثبت‌نام «${studentName || "دانشجو"}» از دوره «${courseTitle || ""}» اطمینان دارید؟`
+    );
+    if (!confirmed) return;
+
+    try {
+      await apiDeleteEnrollmentAdmin(enrId);
+    } catch {
+      // Local state fallback
+    }
+    setEnrollments((prev) => prev.filter((item) => item.id !== enrId));
   };
 
   const handleCreateCourseSubmit = async (e) => {
@@ -575,12 +590,28 @@ export default function AdminDashboard() {
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => handleToggleStatus(enr.id, enr.status)}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-bold px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
-                      >
-                        تغییر وضعیت
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => handleToggleStatus(enr.id, enr.status)}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-bold px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
+                          title="تغییر وضعیت پرونده"
+                        >
+                          تغییر وضعیت
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleDeleteEnrollment(
+                              enr.id,
+                              enr.user?.full_name,
+                              enr.course?.title_fa || enr.course?.title
+                            )
+                          }
+                          className="text-xs text-red-600 hover:text-red-800 font-bold px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
+                          title="حذف دانشجو از دوره"
+                        >
+                          حذف از دوره
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
