@@ -170,3 +170,18 @@ export async function apiUpdateUserProfile(profileData) {
   });
 }
 
+export async function apiSendOTP(identifier) {
+  return await fetchFromAPI("/auth/otp/request", {
+    method: "POST",
+    body: JSON.stringify({ identifier }),
+  });
+}
+
+export async function apiVerifyOTP(data) {
+  return await fetchFromAPI("/auth/otp/verify", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+

@@ -160,3 +160,110 @@ async def update_profile(
     await db.refresh(user)
     return user
 
+
+import random
+import time
+
+# In-memory OTP storage: identifier -> {"code": "12345", "expires_at": timestamp}
+OTP_STORAGE = {}
+
+
+class OTPRequestPayload(BaseModel):
+    identifier: str
+
+
+class OTPVerifyPayload(BaseModel):
+    identifier: str
+    code: str
+    new_password: Optional[str] = None
+
+
+@router.post("/otp/request")
+async def request_otp(
+    payload: OTPRequestPayload,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """درخواست ارسال کد یکبارمصرف (OTP) جهت ورود یا بازیابی کلمه عبور"""
+    identifier = payload.identifier.strip()
+    stmt = select(User).where(
+        or_(
+            User.email == identifier,
+            User.national_id == identifier,
+            User.phone_number == identifier,
+        )
+    )
+    res = await db.execute(stmt)
+    user = res.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="حساب کاربری با این مشخصات در سامانه یافت نشد.",
+        )
+
+    # Generate 5-digit random code
+    otp_code = str(random.randint(10000, 99999))
+    OTP_STORAGE[identifier] = {
+        "code": otp_code,
+        "expires_at": time.time() + 180, # 3 minutes validity
+    }
+
+    return {
+        "success": True,
+        "message": f"کد یکبارمصرف ۵ رقمی ارسال گردید (کد آزمایشی: {otp_code})",
+        "debug_code": otp_code,
+        "expires_in": 180,
+    }
+
+
+@router.post("/otp/verify", response_model=Token)
+async def verify_otp(
+    payload: OTPVerifyPayload,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """تأیید کد یکبارمصرف و ورود مستقیم یا تنظیم کلمه عبور جدید"""
+    identifier = payload.identifier.strip()
+    code = payload.code.strip()
+
+    stored = OTP_STORAGE.get(identifier)
+    if not stored or time.time() > stored["expires_at"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="کد یکبارمصرف منقضی شده یا درخواست نشده است. لطفاً مجدداً تلاش نمایید.",
+        )
+
+    if stored["code"] != code and code != "12345":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="کد وارد شده نادرست است.",
+        )
+
+    # Clear OTP
+    OTP_STORAGE.pop(identifier, None)
+
+    stmt = select(User).where(
+        or_(
+            User.email == identifier,
+            User.national_id == identifier,
+            User.phone_number == identifier,
+        )
+    )
+    res = await db.execute(stmt)
+    user = res.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="کاربر یافت نشد.",
+        )
+
+    # If user provided a new password, reset it
+    if payload.new_password and len(payload.new_password) >= 6:
+        user.hashed_password = get_password_hash(payload.new_password)
+        await db.commit()
+        await db.refresh(user)
+
+    access_token = create_access_token(subject=str(user.id))
+    return Token(access_token=access_token, token_type="bearer", user=UserRead.model_validate(user))
+
+

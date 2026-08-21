@@ -23,6 +23,7 @@ import {
 } from "@/components/Icons";
 import { toPersianDigits, formatTrackingCode } from "@/lib/formatters";
 import CustomModal from "@/components/UI/CustomModal";
+import { useToast } from "@/components/UI/ToastProvider";
 
 function getInstructorName(course) {
   if (!course) return "عضو هیئت علمی";
@@ -44,6 +45,7 @@ export default function StudentDashboard() {
   const [userEnrollments, setUserEnrollments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("courses"); // 'courses' | 'announcements' | 'profile'
+  const toast = useToast();
 
   // Modal State
   const [modalConfig, setModalConfig] = useState({
@@ -137,16 +139,10 @@ export default function StudentDashboard() {
             await apiDropEnrollment(enrollment.id);
           }
           setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
-          setActionMessage({
-            text: `انصراف شما از دوره «${courseTitle}» با موفقیت در سامانه ثبت شد.`,
-            type: "success",
-          });
+          toast.success(`انصراف شما از دوره «${courseTitle}» با موفقیت ثبت شد.`);
         } catch {
           setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
-          setActionMessage({
-            text: `انصراف شما از دوره «${courseTitle}» با موفقیت ثبت شد.`,
-            type: "success",
-          });
+          toast.success(`انصراف شما از دوره «${courseTitle}» با موفقیت ثبت شد.`);
         } finally {
           setDroppingId(null);
         }
@@ -196,15 +192,19 @@ export default function StudentDashboard() {
         new_password: "",
       }));
 
+      const successTxt = "مشخصات کاربری شما با موفقیت به‌روزرسانی شد.";
       setActionMessage({
-        text: "مشخصات کاربری شما با موفقیت به‌روزرسانی شد.",
+        text: successTxt,
         type: "success",
       });
+      toast.success(successTxt);
     } catch (err) {
+      const errTxt = err.message || "خطا در به‌روزرسانی مشخصات.";
       setActionMessage({
-        text: err.message || "خطا در به‌روزرسانی مشخصات.",
+        text: errTxt,
         type: "error",
       });
+      toast.error(errTxt);
     } finally {
       setIsSavingProfile(false);
     }

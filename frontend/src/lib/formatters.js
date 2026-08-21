@@ -60,9 +60,36 @@ export function formatDateShamsi(dateInput) {
 }
 
 /**
- * Cleanly formats a tracking code ensuring mono display and direction.
+ * Formats tracking code with standard AUT prefix.
  */
 export function formatTrackingCode(code) {
-  if (!code) return "AUT-1404-000000";
-  return String(code).trim().toUpperCase();
+  if (!code) return "AUT-1404-—";
+  return String(code).toUpperCase();
+}
+
+/**
+ * Validates Iranian National ID using the official 10-digit checksum algorithm.
+ */
+export function isValidIranianNationalCode(code) {
+  if (!code) return false;
+  const cleanCode = toEnglishDigits(String(code).trim());
+  
+  // Must be exactly 10 digits
+  if (!/^\d{10}$/.test(cleanCode)) {
+    return false;
+  }
+  
+  // Reject repetitive digits like "0000000000", "1111111111", etc.
+  if (/^(\d)\1{9}$/.test(cleanCode)) {
+    return false;
+  }
+  
+  const check = parseInt(cleanCode[9], 10);
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cleanCode[i], 10) * (10 - i);
+  }
+  
+  const remainder = sum % 11;
+  return (remainder < 2 && check === remainder) || (remainder >= 2 && check === 11 - remainder);
 }

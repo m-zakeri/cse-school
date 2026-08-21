@@ -51,15 +51,62 @@ const yekanBakh = localFont({
 });
 
 export const metadata = {
-  title: "مدرسه پاییزه امیرکبیر",
-  description: "دوره‌های آموزشی تخصصی دانشکده مهندسی کامپیوتر دانشگاه امیرکبیر",
+  title: {
+    default: "مدرسه فصلی مهندسی کامپیوتر | دانشگاه صنعتی امیرکبیر",
+    template: "%s | مدرسه فصلی کامپیوتر پلی‌تکنیک",
+  },
+  description:
+    "سامانه رسمی ثبت‌نام و برگزاری دوره‌های تخصصی و بسته‌های میکرومستر دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر (پلی‌تکنیک تهران).",
+  keywords: [
+    "دانشگاه صنعتی امیرکبیر",
+    "دانشکده مهندسی کامپیوتر",
+    "مدرسه فصلی کامپیوتر",
+    "یادگیری ماشین",
+    "مهندسی نرم‌افزار",
+    "تضمین کیفیت نرم‌افزار",
+    "رایانش ابری",
+    "میکرومستر",
+  ],
+  authors: [{ name: "حسین زارعی‌نژاد" }],
+  creator: "حسین زارعی‌نژاد",
+  publisher: "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
+  metadataBase: new URL("https://ce.aut.ac.ir"),
+  openGraph: {
+    title: "مدرسه فصلی مهندسی کامپیوتر | دانشگاه صنعتی امیرکبیر",
+    description:
+      "سامانه رسمی ثبت‌نام و برگزاری دوره‌های تخصصی و بسته‌های میکرومستر دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر (پلی‌تکنیک تهران).",
+    url: "https://ce.aut.ac.ir",
+    siteName: "مدرسه فصلی مهندسی کامپیوتر پلی‌تکنیک",
+    locale: "fa_IR",
+    type: "website",
+    images: [
+      {
+        url: "/photos/coursepic/ml.jpg",
+        width: 1200,
+        height: 630,
+        alt: "مدرسه فصلی مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "مدرسه فصلی مهندسی کامپیوتر | دانشگاه صنعتی امیرکبیر",
+    description:
+      "سامانه رسمی ثبت‌نام دوره‌های تخصصی و بسته‌های آموزشی مهندسی کامپیوتر پلی‌تکنیک تهران.",
+    images: ["/photos/coursepic/ml.jpg"],
+  },
+  icons: {
+    icon: "/photos/aut_logo.png",
+    shortcut: "/photos/aut_logo.png",
+    apple: "/photos/aut_logo.png",
+  },
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
       <body
-        className={`${yekanBakh.variable} font-yekan-bakh antialiased bg-gray-50`}
+        className={`${yekanBakh.variable} font-yekan-bakh antialiased`}
       >
         {children}
       </body>
