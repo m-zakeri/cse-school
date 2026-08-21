@@ -210,21 +210,55 @@ export async function apiRegister(userData) {
       method: "POST",
       body: JSON.stringify(userData),
     });
-  } catch {
-    // Offline / GitHub Pages Fallback
+  } catch (err) {
+    // If backend responded with validation/duplicate error, throw it directly
+    if (
+      err.message &&
+      (err.message.includes("قبلاً") ||
+        err.message.includes("ثبت‌نام کرده") ||
+        err.message.includes("نامعتبر") ||
+        err.message.includes("الزامی"))
+    ) {
+      throw err;
+    }
+
+    // Offline / GitHub Pages Fallback: Check duplicates in local database
+    const localUsers = getLocalUsers();
+    const cleanNationalId = userData.national_id.trim();
+    const cleanEmail = userData.email.trim().toLowerCase();
+    const cleanPhone = userData.phone_number.trim();
+
+    // Check duplicate national ID
+    if (localUsers.some((u) => u.national_id === cleanNationalId)) {
+      throw new Error("کاربری با این کد ملی قبلاً در سامانه ثبت‌نام کرده است.");
+    }
+    // Check duplicate email
+    if (localUsers.some((u) => u.email?.toLowerCase() === cleanEmail)) {
+      throw new Error("کاربری با این آدرس ایمیل قبلاً در سامانه ثبت‌نام کرده است.");
+    }
+    // Check duplicate phone number
+    if (localUsers.some((u) => u.phone_number === cleanPhone)) {
+      throw new Error("کاربری با این شماره تلفن همراه قبلاً در سامانه ثبت‌نام کرده است.");
+    }
+
     const createdUser = {
       id: `usr-${Date.now()}`,
-      national_id: userData.national_id,
-      phone_number: userData.phone_number,
-      email: userData.email,
-      full_name: userData.full_name,
+      national_id: cleanNationalId,
+      phone_number: cleanPhone,
+      email: cleanEmail,
+      full_name: userData.full_name.trim(),
+      password: userData.password,
       role: "STUDENT",
       university: userData.university || "دانشگاه صنعتی امیرکبیر",
       education_level: userData.education_level || "bachelor_student",
       field_of_study: userData.field_of_study || "مهندسی کامپیوتر",
     };
     saveLocalUser(createdUser);
-    return createdUser;
+    return {
+      access_token: "mock-student-token",
+      token_type: "bearer",
+      user: createdUser,
+    };
   }
 }
 

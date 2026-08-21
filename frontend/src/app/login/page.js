@@ -190,18 +190,59 @@ function LoginContent() {
     setSuccessMessage("");
 
     const nationalIdClean = signupData.nationalId.trim();
+    const emailClean = signupData.email.trim();
+    const phoneClean = signupData.phoneNumber.trim();
+    const fullNameClean = signupData.fullName.trim();
+    const passwordClean = signupData.password.trim();
 
-    // Check national ID checksum
-    if (!isValidIranianNationalCode(nationalIdClean)) {
-      const msg = "کد ملی ۱۰ رقمی وارد شده نامعتبر است. لطفاً کد ملی صحیح را وارد نمایید.";
+    // 1. Full name validation
+    if (!fullNameClean || fullNameClean.length < 3) {
+      const msg = "لطفاً نام و نام خانوادگی خود را به صورت کامل وارد نمایید.";
       setErrorMessage(msg);
       toast.error(msg);
       setIsLoading(false);
       return;
     }
 
+    // 2. National ID validation
+    if (!isValidIranianNationalCode(nationalIdClean)) {
+      const msg = "کد ملی ۱۰ رقمی وارد شده نامعتبر است. لطفاً کد ملی معتبر و صحیح را وارد نمایید.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      setIsLoading(false);
+      return;
+    }
+
+    // 3. Mobile phone format validation
+    if (!/^09\d{9}$/.test(phoneClean)) {
+      const msg = "شماره همراه وارد شده نامعتبر است. شماره همراه باید با 09 شروع شده و ۱۱ رقم باشد.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      setIsLoading(false);
+      return;
+    }
+
+    // 4. Email format validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+      const msg = "فرمت آدرس ایمیل وارد شده نامعتبر است (مثال: student@aut.ac.ir).";
+      setErrorMessage(msg);
+      toast.error(msg);
+      setIsLoading(false);
+      return;
+    }
+
+    // 5. Password length validation
+    if (passwordClean.length < 6) {
+      const msg = "کلمه عبور باید حداقل شامل ۶ کاراکتر باشد.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      setIsLoading(false);
+      return;
+    }
+
+    // 6. Terms agreement validation
     if (!signupData.agreeTerms) {
-      const msg = "پذیرش آیین‌نامه و شرایط دوره الزامی است.";
+      const msg = "پذیرش آیین‌نامه و قوانین آموزشی دوره الزامی است.";
       setErrorMessage(msg);
       toast.error(msg);
       setIsLoading(false);
@@ -210,19 +251,19 @@ function LoginContent() {
 
     const payload = {
       national_id: nationalIdClean,
-      phone_number: signupData.phoneNumber.trim(),
-      email: signupData.email.trim(),
-      full_name: signupData.fullName.trim(),
-      password: signupData.password.trim(),
+      phone_number: phoneClean,
+      email: emailClean,
+      full_name: fullNameClean,
+      password: passwordClean,
       education_level: signupData.educationLevel,
-      university: signupData.university.trim(),
+      university: signupData.university.trim() || "دانشگاه صنعتی امیرکبیر",
       field_of_study: "مهندسی کامپیوتر",
     };
 
     try {
       const res = await apiRegister(payload);
       saveAuthSession(res.access_token, res.user);
-      toast.success("حساب کاربری با موفقیت ایجاد شد.");
+      toast.success("حساب کاربری شما با موفقیت ایجاد شد.");
 
       setTimeout(() => {
         if (redirectUrl) {
@@ -232,25 +273,9 @@ function LoginContent() {
         }
       }, 500);
     } catch (err) {
-      // Local fallback simulation
-      const mockUser = {
-        id: "new-student-uuid",
-        national_id: nationalIdClean,
-        phone_number: signupData.phoneNumber.trim(),
-        email: signupData.email.trim(),
-        full_name: signupData.fullName.trim(),
-        role: "STUDENT",
-      };
-      saveAuthSession("mock-signup-token", mockUser);
-      toast.success("حساب کاربری ایجاد شد.");
-
-      setTimeout(() => {
-        if (redirectUrl) {
-          router.push(redirectUrl);
-        } else {
-          router.push("/dashboard");
-        }
-      }, 500);
+      const msg = err.message || "خطا در ایجاد حساب کاربری.";
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
