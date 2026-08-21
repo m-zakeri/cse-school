@@ -1,14 +1,19 @@
 /** @type {import('next').NextConfig} */
+const isProd = process.env.NODE_ENV === "production";
+const isExport = process.env.NEXT_EXPORT === "true";
+
 const nextConfig = {
-  output: "standalone",
-  // بهینه‌سازی برای سرعت بیشتر
-  compiler: {
-    removeConsole: process.env.NODE_ENV === "production",
+  output: isExport ? "export" : "standalone",
+  images: {
+    unoptimized: true,
   },
-  // بهینه‌سازی experimental برای سرعت بیشتر
+  compiler: {
+    removeConsole: isProd,
+  },
   experimental: {
     optimizePackageImports: ["react", "react-dom"],
   },
 };
 
 export default nextConfig;
+
