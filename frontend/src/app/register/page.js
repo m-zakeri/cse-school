@@ -25,9 +25,7 @@ export default function Register() {
   const [isMounted, setIsMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
-  const [coursesList, setCoursesList] = useState(
-    courses.filter((c) => c.id !== 5)
-  );
+  const [coursesList, setCoursesList] = useState(courses);
 
   const [selectedCourses, setSelectedCourses] = useState([]);
   const [agreeTerms, setAgreeTerms] = useState(true);
@@ -72,9 +70,7 @@ export default function Register() {
       const combined = [
         ...dynamicFormatted,
         ...courses.filter(
-          (c) =>
-            c.id !== 5 &&
-            !dynamicFormatted.some((d) => d.id === c.id)
+          (c) => !dynamicFormatted.some((d) => d.id === c.id)
         ),
       ];
       setCoursesList(combined);

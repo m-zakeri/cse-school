@@ -18,6 +18,7 @@ import {
   UserPlusIcon,
   ChevronLeftIcon,
 } from "@/components/Icons";
+import { toPersianDigits, formatTrackingCode } from "@/lib/formatters";
 
 function getInstructorName(course) {
   if (!course) return "عضو هیئت علمی";
@@ -162,7 +163,7 @@ export default function StudentDashboard() {
             <div>
               <p className="text-xs text-slate-500">دوره‌های ثبت‌نام‌شده</p>
               <p className="text-lg font-extrabold text-slate-900">
-                {userEnrollments.length} دوره
+                {toPersianDigits(userEnrollments.length)} دوره
               </p>
             </div>
           </div>
@@ -243,8 +244,8 @@ export default function StudentDashboard() {
                       <span className="bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-100">
                         ثبت‌نام نهایی
                       </span>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        {enr.tracking_code}
+                      <span className="text-[11px] text-slate-400 font-mono dir-ltr">
+                        {formatTrackingCode(enr.tracking_code)}
                       </span>
                     </div>
 

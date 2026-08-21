@@ -5,6 +5,7 @@ import MainLayout from "@/components/Layout/MainLayout";
 import CourseCard from "@/components/CourseCard";
 import { courses as initialCourses } from "@/data/sampleData";
 import { getLocalDynamicCourses, apiGetCourses } from "@/lib/api";
+import { toPersianDigits } from "@/lib/formatters";
 import {
   AcademicCapIcon,
   AwardIcon,
@@ -13,10 +14,7 @@ import {
 } from "@/components/Icons";
 
 export default function Courses() {
-  const hiddenCourseIds = [5];
-  const [coursesList, setCoursesList] = useState(
-    initialCourses.filter((course) => !hiddenCourseIds.includes(course.id))
-  );
+  const [coursesList, setCoursesList] = useState(initialCourses);
 
   useEffect(() => {
     async function loadAllCourses() {
@@ -40,10 +38,11 @@ export default function Courses() {
             image: `/photos/coursepic/${
               c.course_number === 1 ? "ml.jpg" :
               c.course_number === 2 ? "ST.jpg" :
-              c.course_number === 3 ? "AP.jpg" : "SE.jpg"
+              c.course_number === 3 ? "AP.jpg" :
+              c.course_number === 5 ? "AP.jpg" : "SE.jpg"
             }`,
           }));
-          setCoursesList(formatted.filter((course) => !hiddenCourseIds.includes(course.id)));
+          setCoursesList(formatted);
           return;
         }
       } catch {
@@ -68,9 +67,7 @@ export default function Courses() {
         const combined = [
           ...dynamicFormatted,
           ...initialCourses.filter(
-            (c) =>
-              !hiddenCourseIds.includes(c.id) &&
-              !dynamicFormatted.some((d) => d.id === c.id)
+            (c) => !dynamicFormatted.some((d) => d.id === c.id)
           ),
         ];
         setCoursesList(combined);
@@ -106,7 +103,9 @@ export default function Courses() {
               </div>
               <div>
                 <p className="text-xs text-slate-400">دوره‌های تخصصی</p>
-                <p className="text-sm font-bold text-white">{coursesList.length} عنوان دوره فعال</p>
+                <p className="text-sm font-bold text-white">
+                  {toPersianDigits(coursesList.length)} عنوان دوره فعال
+                </p>
               </div>
             </div>
 
