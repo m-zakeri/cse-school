@@ -50,14 +50,9 @@ const Sidebar = () => {
       icon: LayersIcon,
     },
     {
-      title: "ثبت‌نام",
+      title: "ثبت‌نام و اخذ دوره",
       href: "/register",
       icon: UserPlusIcon,
-    },
-    {
-      title: "ورود / پرتال کاربری",
-      href: "/login",
-      icon: ShieldCheckIcon,
     },
     {
       title: "اطلاعات تکمیلی",

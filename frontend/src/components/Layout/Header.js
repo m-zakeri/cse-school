@@ -37,7 +37,7 @@ const Header = () => {
       "/courses/6": "اصول و الگوها در مهندسی نرم‌افزار",
       "/courses/7": "اصول رایانش ابری",
       "/instructors": "اساتید دوره",
-      "/register": "ثبت‌نام در دوره‌ها",
+      "/register": "اخذ و ثبت‌نام دوره",
       "/calendar": "تقویم آموزشی",
       "/micromaster": "بسته‌های میکرومستر",
       "/syllabus": "سرفصل دوره‌ها",
@@ -45,7 +45,7 @@ const Header = () => {
       "/terms": "شرایط و مقررات",
       "/about": "درباره مدرسه",
       "/contact": "تماس با ما",
-      "/login": "ورود به پرتال",
+      "/login": "ورود و ثبت‌نام حساب",
       "/dashboard": "پرتال دانشجو",
       "/admin": "پنل مدیریت آموزش",
     };
@@ -85,7 +85,7 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
-      <div className="px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
+      <div className="px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
         {/* Breadcrumb Navigation */}
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500 overflow-x-auto">
           {breadcrumb.showHome && (
@@ -118,12 +118,12 @@ const Header = () => {
         </nav>
 
         {/* Header Right Actions */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {currentUser ? (
             <div className="flex items-center gap-2">
               <Link
                 href={currentUser.role === "ADMIN" ? "/admin" : "/dashboard"}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-xl border border-blue-200/80 transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200/80 transition-colors shadow-xs"
               >
                 {currentUser.role === "ADMIN" ? (
                   <>
@@ -138,30 +138,38 @@ const Header = () => {
                 )}
               </Link>
 
+              <Link
+                href="/register"
+                className="hidden sm:inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-blue-600 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <UserPlusIcon className="w-3.5 h-3.5 text-blue-600" />
+                <span>اخذ دوره جدید</span>
+              </Link>
+
               <button
                 onClick={handleLogout}
-                className="text-xs text-slate-500 hover:text-red-600 font-medium px-2.5 py-2 rounded-xl hover:bg-slate-100 transition-colors"
+                className="text-xs text-slate-400 hover:text-red-600 font-medium px-2 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
                 title="خروج از حساب"
               >
                 خروج
               </button>
             </div>
           ) : (
-            <>
+            <div className="flex items-center gap-2">
               <Link
-                href="/login"
+                href="/login?tab=login"
                 className="text-xs font-semibold text-slate-700 hover:text-blue-600 px-3 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 transition-colors"
               >
-                ورود / پرتال
+                ورود به حساب
               </Link>
               <Link
-                href="/register"
-                className="hidden sm:inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3.5 rounded-xl shadow-xs hover:shadow transition-all"
+                href="/login?tab=signup"
+                className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-3.5 rounded-xl shadow-xs hover:shadow transition-all"
               >
                 <UserPlusIcon className="w-3.5 h-3.5" />
-                <span>ثبت‌نام آنلاین</span>
+                <span>ایجاد حساب کاربری</span>
               </Link>
-            </>
+            </div>
           )}
         </div>
       </div>

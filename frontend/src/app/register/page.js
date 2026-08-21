@@ -5,7 +5,7 @@ import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
 import { apiCreateBatchEnrollment, getLocalDynamicCourses } from "@/lib/api";
-import { saveAuthSession } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import {
   UserPlusIcon,
   CheckCircleIcon,
@@ -13,13 +13,27 @@ import {
   ShieldCheckIcon,
   AcademicCapIcon,
   ChevronLeftIcon,
-  LockClosedIcon,
+  UsersIcon,
+  BookOpenIcon,
 } from "@/components/Icons";
 
 export default function Register() {
+  const [isMounted, setIsMounted] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [coursesList, setCoursesList] = useState(courses.filter((c) => c.id !== 5));
 
+  const [selectedCourses, setSelectedCourses] = useState([]);
+  const [agreeTerms, setAgreeTerms] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successData, setSuccessData] = useState(null);
+
   useEffect(() => {
+    setIsMounted(true);
+    const user = getCurrentUser();
+    setCurrentUser(user);
+
+    // Dynamic courses loading
     const dynamic = getLocalDynamicCourses();
     if (dynamic.length > 0) {
       const dynamicFormatted = dynamic.map((c) => ({
@@ -37,22 +51,6 @@ export default function Register() {
     }
   }, []);
 
-  const [selectedCourses, setSelectedCourses] = useState([]);
-  const [formData, setFormData] = useState({
-    fullName: "",
-    nationalId: "",
-    phoneNumber: "",
-    email: "",
-    password: "",
-    educationLevel: "bachelor_student",
-    university: "",
-    agreeTerms: false,
-  });
-
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successData, setSuccessData] = useState(null);
-
   const handleCourseToggle = (courseId) => {
     setSelectedCourses((prev) =>
       prev.includes(courseId)
@@ -61,21 +59,13 @@ export default function Register() {
     );
   };
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const handleSubmit = async (e) => {
+  const handleEnrolledSubmit = async (e) => {
     e.preventDefault();
     if (selectedCourses.length === 0) {
-      setErrorMessage("لطفاً حداقل یک دوره را برای ثبت‌نام انتخاب کنید.");
+      setErrorMessage("لطفاً حداقل یک دوره را برای اخذ انتخاب نمایید.");
       return;
     }
-    if (!formData.agreeTerms) {
+    if (!agreeTerms) {
       setErrorMessage("پذیرش آیین‌نامه و قوانین آموزشی الزامی است.");
       return;
     }
@@ -83,17 +73,14 @@ export default function Register() {
     setIsLoading(true);
     setErrorMessage("");
 
-    const effectivePassword = formData.password.trim() || formData.nationalId.trim();
-
     const payload = {
       course_ids: selectedCourses,
-      national_id: formData.nationalId.trim(),
-      phone_number: formData.phoneNumber.trim(),
-      email: formData.email.trim(),
-      full_name: formData.fullName.trim(),
-      password: effectivePassword,
-      education_level: formData.educationLevel,
-      university: formData.university.trim(),
+      national_id: currentUser.national_id,
+      phone_number: currentUser.phone_number || "09120000000",
+      email: currentUser.email || "student@aut.ac.ir",
+      full_name: currentUser.full_name || "دانشجو",
+      education_level: currentUser.education_level || "bachelor_student",
+      university: currentUser.university || "دانشگاه صنعتی امیرکبیر",
       field_of_study: "مهندسی کامپیوتر",
     };
 
@@ -102,60 +89,49 @@ export default function Register() {
       const primaryTracking =
         enrollments[0]?.tracking_code || `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      // Save user session directly so they are immediately logged in
-      const userObj = {
-        national_id: formData.nationalId.trim(),
-        phone_number: formData.phoneNumber.trim(),
-        email: formData.email.trim(),
-        full_name: formData.fullName.trim(),
-        role: "STUDENT",
-      };
-      saveAuthSession("student-session", userObj);
-
       setSuccessData({
         trackingCode: primaryTracking,
         coursesCount: selectedCourses.length,
-        studentName: formData.fullName,
-        nationalId: formData.nationalId,
-        passwordHint: formData.password.trim() ? "کلمه عبور انتخابی شما" : `کد ملی شما (${formData.nationalId})`,
+        studentName: currentUser.full_name,
+        nationalId: currentUser.national_id,
       });
     } catch {
-      // Offline fallback simulation
+      // Offline fallback
       const fallbackTracking = `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      const userObj = {
-        national_id: formData.nationalId.trim(),
-        phone_number: formData.phoneNumber.trim(),
-        email: formData.email.trim(),
-        full_name: formData.fullName.trim(),
-        role: "STUDENT",
-      };
-      saveAuthSession("student-session", userObj);
-
       setSuccessData({
         trackingCode: fallbackTracking,
         coursesCount: selectedCourses.length,
-        studentName: formData.fullName,
-        nationalId: formData.nationalId,
-        passwordHint: formData.password.trim() ? "کلمه عبور انتخابی شما" : `کد ملی شما (${formData.nationalId})`,
+        studentName: currentUser.full_name,
+        nationalId: currentUser.national_id,
       });
     } finally {
       setIsLoading(false);
     }
   };
 
+  if (!isMounted) {
+    return (
+      <MainLayout>
+        <div className="py-20 text-center text-xs text-slate-500">
+          در حال بارگذاری فرم انتخاب دوره...
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
       {/* Page Title */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-semibold mb-3">
-          <UserPlusIcon className="w-4 h-4 text-blue-600" />
-          <span>پرتال پذیرش و ثبت‌نام آنلاین</span>
+          <BookOpenIcon className="w-4 h-4 text-blue-600" />
+          <span>پرتال اخذ و ثبت‌نام دوره‌ها — ترم پاییز ۱۴۰۴</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-          ثبت‌نام در دوره‌های تخصصی ترم پاییز ۱۴۰۴
+          انتخاب و اخذ دوره‌های تخصصی
         </h1>
-        <p className="text-slate-600 text-sm">
-          فرم پیش‌ثبت‌نام، تعیین دوره و ثبت مشخصات هویتی جهت شرکت در کلاس‌ها و صدور گواهی دانشگاه امیرکبیر
+        <p className="text-slate-600 text-xs sm:text-sm">
+          دوره‌های مورد تقاضای خود را انتخاب کنید تا مستقیماً به برنامه درسی شما افزوده شوند.
         </p>
       </div>
 
@@ -167,34 +143,30 @@ export default function Register() {
           </div>
 
           <h2 className="text-xl font-extrabold text-slate-900 mb-1">
-            ثبت‌نام شما با موفقیت تکمیل شد
+            دوره‌های انتخابی با موفقیت ثبت شدند
           </h2>
           <p className="text-xs text-slate-600 mb-6">
-            حساب کاربری و پرونده آموزشی شما در سامانه دانشگاه ایجاد گردید.
+            پرونده آموزشی شما به‌روزرسانی شد و لینک کلاس‌ها در پرتال شما فعال است.
           </p>
 
           <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200/80 mb-6 text-right space-y-3 text-xs">
             <div className="flex justify-between items-center pb-2.5 border-b border-slate-200">
-              <span className="text-slate-500">کد رهگیری اختصاصی:</span>
+              <span className="text-slate-500">کد رهگیری ثبت‌نام:</span>
               <span className="font-mono font-bold text-sm text-blue-700 dir-ltr">
                 {successData.trackingCode}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-500">نام متقاضی:</span>
+              <span className="text-slate-500">نام دانشجو:</span>
               <span className="font-bold text-slate-800">{successData.studentName}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-500">شناسه کاربری (نام کاربری جهت ورود):</span>
+              <span className="text-slate-500">کد ملی:</span>
               <span className="font-bold font-mono text-slate-900">{successData.nationalId}</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-500">کلمه عبور ورود به سامانه:</span>
-              <span className="font-bold text-emerald-700">{successData.passwordHint}</span>
-            </div>
             <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-              <span className="text-slate-500">تعداد دوره‌های ثبت‌شده:</span>
-              <span className="font-bold text-slate-800">{successData.coursesCount} دوره</span>
+              <span className="text-slate-500">تعداد دوره‌های اخذ شده:</span>
+              <span className="font-bold text-emerald-700">{successData.coursesCount} دوره</span>
             </div>
           </div>
 
@@ -203,7 +175,7 @@ export default function Register() {
               href="/dashboard"
               className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-3 px-6 rounded-xl transition-all shadow-sm"
             >
-              <span>ورود مستقیم به پرتال دانشجو و کلاس‌ها</span>
+              <span>مشاهده برنامه کلاسی در پرتال من</span>
               <ChevronLeftIcon className="w-4 h-4" />
             </Link>
             <button
@@ -213,39 +185,81 @@ export default function Register() {
               }}
               className="inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-3 px-6 rounded-xl transition-all"
             >
-              ثبت‌نام جدید
+              اخذ دوره بیشتر
             </button>
           </div>
         </div>
       ) : (
         <>
-          {/* Info Notice Banner */}
-          <div className="bg-gradient-to-r from-blue-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 mb-8 border border-blue-800 shadow-md">
-            <div className="flex items-center gap-2 mb-3 text-blue-300">
-              <CalendarIcon className="w-5 h-5" />
-              <h2 className="text-sm sm:text-base font-bold text-white">نکات و مهلت‌های ثبت‌نام</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-slate-300">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-                <span className="font-semibold text-white block mb-1">مهلت نهایی ثبت‌نام:</span>
-                <p>۵ مهر ۱۴۰۴ (ظرفیت هر دوره محدود به ۳۰ نفر)</p>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-                <span className="font-semibold text-white block mb-1">آغاز جلسات برخط:</span>
-                <p>۱۰ مهر ۱۴۰۴ در پرتال آموزش الکترونیکی</p>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3.5">
-                <span className="font-semibold text-white block mb-1">مدارک هویتی:</span>
-                <p>تطبیق کد ملی جهت صدور مدرک رسمی دانشگاهی</p>
-              </div>
-            </div>
-          </div>
+          {/* User Identity Status Card */}
+          {currentUser ? (
+            <div className="bg-gradient-to-r from-blue-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 mb-8 border border-blue-800 shadow-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-blue-300 font-bold text-lg">
+                    {currentUser.full_name?.charAt(0) || "👤"}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm sm:text-base font-bold text-white">
+                        {currentUser.full_name || "دانشجوی گرامی"}
+                      </p>
+                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                        وارد شده
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      کد ملی: <span className="font-mono">{currentUser.national_id}</span> • ایمیل: {currentUser.email || "ثبت‌شده"}
+                    </p>
+                  </div>
+                </div>
 
-          {/* Registration Form */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-sm mb-12">
-            <h2 className="text-base font-bold text-slate-900 mb-6 pb-3 border-b border-slate-100">
-              فرم پیش‌ثبت‌نام آنلاین
+                <div className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded-xl px-3 py-2 self-start sm:self-auto">
+                  <p>اطلاعات هویتی شما ذخیره شده است؛ کافیست دوره‌ها را انتخاب نمایید.</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-3xl p-5 sm:p-6 mb-8 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <ShieldCheckIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-amber-950">
+                    برای اخذ دوره‌ها، ابتدا وارد حساب خود شوید
+                  </p>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    پس از یک‌بار ورود یا ایجاد حساب، نیازی به ثبت مکرر اطلاعات در هیچ دوره‌ای نخواهید داشت.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 shrink-0">
+                <Link
+                  href="/login?redirect=/register"
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-xs"
+                >
+                  ورود به حساب
+                </Link>
+                <Link
+                  href="/login?tab=signup&redirect=/register"
+                  className="bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+                >
+                  ایجاد حساب جدید
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Course Selection Form */}
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm mb-12">
+            <h2 className="text-base font-bold text-slate-900 mb-2">
+              فهرست دوره‌های ارائه شده در ترم
             </h2>
+            <p className="text-xs text-slate-500 mb-6 pb-3 border-b border-slate-100">
+              دوره‌های مورد نظر خود را با زدن تیک انتخاب نمایید.
+            </p>
 
             {errorMessage && (
               <div className="mb-6 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
@@ -254,187 +268,106 @@ export default function Register() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Course Selection */}
-              <div>
-                <label className="block text-xs font-bold text-slate-900 mb-3">
-                  انتخاب دوره‌(های) مورد تقاضا:
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {coursesList.map((course) => {
-                    const isSelected = selectedCourses.includes(course.id);
-                    return (
-                      <label
-                        key={course.id}
-                        onClick={() => handleCourseToggle(course.id)}
-                        className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                          isSelected
-                            ? "border-blue-600 bg-blue-50/50 shadow-sm"
-                            : "border-slate-200 hover:border-blue-300 hover:bg-blue-50/20"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {}}
-                          className="mt-1 text-blue-600 rounded focus:ring-blue-500"
-                        />
-                        <div className="flex-1">
+            <form onSubmit={currentUser ? handleEnrolledSubmit : (e) => e.preventDefault()} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {coursesList.map((course) => {
+                  const isSelected = selectedCourses.includes(course.id);
+                  return (
+                    <label
+                      key={course.id}
+                      onClick={() => handleCourseToggle(course.id)}
+                      className={`flex items-start gap-3.5 p-4 rounded-2xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-blue-600 bg-blue-50/60 shadow-sm"
+                          : "border-slate-200/80 hover:border-blue-300 hover:bg-slate-50/80"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        className="mt-1 text-blue-600 rounded focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
                           <p className="text-xs font-bold text-slate-900">{course.title}</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            مدرس: {course.instructor} • {course.units} ({course.level})
-                          </p>
+                          <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                            {course.units}
+                          </span>
                         </div>
-                      </label>
-                    );
-                  })}
-                </div>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          مدرس: {course.instructor} • سطح: {course.level}
+                        </p>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
 
-              {/* Personal Information */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-4 border-t border-slate-100">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    نام و نام خانوادگی *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="مثال: علی محمدی"
-                  />
-                </div>
+              {/* Terms and Submit */}
+              {currentUser ? (
+                <div className="pt-6 border-t border-slate-100 space-y-4">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="terms_agree"
+                      checked={agreeTerms}
+                      onChange={(e) => setAgreeTerms(e.target.checked)}
+                      className="text-blue-600 rounded focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                    />
+                    <label htmlFor="terms_agree" className="text-xs text-slate-600 cursor-pointer">
+                      با{" "}
+                      <Link href="/terms" className="text-blue-600 font-semibold hover:underline">
+                        آیین‌نامه و شرایط و مقررات دوره‌ها
+                      </Link>{" "}
+                      موافقت کامل دارم.
+                    </label>
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    کد ملی (نام کاربری شما جهت ورود) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    name="nationalId"
-                    value={formData.nationalId}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
-                    placeholder="ده رقم بدون خط تیره"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    شماره تلفن همراه (جهت دریافت اطلاعیه‌ها) *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    name="phoneNumber"
-                    value={formData.phoneNumber}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-mono"
-                    placeholder="۰۹۱۲..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    پست الکترونیکی (ایمیل) *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="name@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    کلمه عبور دلخواه برای ورود به سامانه
-                  </label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="در صورت خالی ماندن، کد ملی کلمه عبور خواهد بود"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    دانشگاه / موسسه محل تحصیل یا کار
-                  </label>
-                  <input
-                    type="text"
-                    name="university"
-                    value={formData.university}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="مثال: دانشگاه صنعتی امیرکبیر"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                    مقطع تحصیلی
-                  </label>
-                  <select
-                    name="educationLevel"
-                    value={formData.educationLevel}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  <button
+                    type="submit"
+                    disabled={isLoading || selectedCourses.length === 0}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-md hover:shadow-lg transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    <option value="bachelor_student">دانشجوی کارشناسی</option>
-                    <option value="bachelor">کارشناسی (فارغ‌التحصیل)</option>
-                    <option value="master_student">دانشجوی کارشناسی ارشد</option>
-                    <option value="master">کارشناسی ارشد</option>
-                    <option value="phd">دکتری تخصصی</option>
-                    <option value="other">سایر</option>
-                  </select>
+                    {isLoading ? (
+                      <span>در حال ثبت نهایی دوره‌ها...</span>
+                    ) : (
+                      <>
+                        <CheckCircleIcon className="w-4 h-4" />
+                        <span>ثبت نهایی و اخذ {selectedCourses.length > 0 ? `(${selectedCourses.length} دوره)` : "دوره‌ها"}</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-5 rounded-2xl">
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">
+                      {selectedCourses.length > 0
+                        ? `${selectedCourses.length} دوره توسط شما انتخاب شده است.`
+                        : "دوره‌های مورد نظرتان را انتخاب کنید."}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      برای ثبت، لطفاً وارد شوید یا در چند ثانیه ثبت‌نام کنید.
+                    </p>
+                  </div>
 
-              {/* Terms Agreement */}
-              <div className="flex items-center gap-2.5 pt-2">
-                <input
-                  type="checkbox"
-                  id="terms_agree"
-                  name="agreeTerms"
-                  checked={formData.agreeTerms}
-                  onChange={handleInputChange}
-                  className="text-blue-600 rounded focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                />
-                <label htmlFor="terms_agree" className="text-xs text-slate-600 cursor-pointer">
-                  با{" "}
-                  <Link href="/terms" className="text-blue-600 font-semibold hover:underline">
-                    آیین‌نامه و شرایط و مقررات دوره
-                  </Link>{" "}
-                  موافقت کامل دارم.
-                </label>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 px-6 rounded-xl shadow-md hover:shadow-lg transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <span>در حال ثبت اطلاعات در پایگاه داده...</span>
-                ) : (
-                  <>
-                    <UserPlusIcon className="w-4 h-4" />
-                    <span>ثبت نهایی درخواست و دریافت کد رهگیری</span>
-                  </>
-                )}
-              </button>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <Link
+                      href="/login?redirect=/register"
+                      className="flex-1 sm:flex-initial text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-5 rounded-xl text-xs shadow-xs transition-all"
+                    >
+                      ورود به حساب
+                    </Link>
+                    <Link
+                      href="/login?tab=signup&redirect=/register"
+                      className="flex-1 sm:flex-initial text-center bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-semibold py-2.5 px-5 rounded-xl text-xs transition-all"
+                    >
+                      ایجاد حساب جدید
+                    </Link>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </>
