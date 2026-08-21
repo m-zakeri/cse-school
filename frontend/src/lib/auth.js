@@ -1,4 +1,13 @@
-const AUTH_STORAGE_KEY = "aut_ce_school_auth";
+const AUTH_STORAGE_KEY = "aut_ce_school_auth_v2";
+
+// Auto purge legacy storage items
+if (typeof window !== "undefined") {
+  try {
+    localStorage.removeItem("aut_ce_school_auth");
+    localStorage.removeItem("aut_ce_registered_users");
+    localStorage.removeItem("aut_ce_enrollments");
+  } catch {}
+}
 
 export function saveAuthSession(token, user) {
   if (typeof window === "undefined") return;

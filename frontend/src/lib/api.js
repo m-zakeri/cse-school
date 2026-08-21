@@ -3,9 +3,17 @@ import { courses as sampleCourses } from "@/data/sampleData";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
-const DYNAMIC_COURSES_KEY = "aut_ce_dynamic_courses";
-const ENROLLMENTS_STORAGE_KEY = "aut_ce_enrollments";
-const USERS_STORAGE_KEY = "aut_ce_registered_users";
+const DYNAMIC_COURSES_KEY = "aut_ce_dynamic_courses_v2";
+const ENROLLMENTS_STORAGE_KEY = "aut_ce_enrollments_v2";
+const USERS_STORAGE_KEY = "aut_ce_registered_users_v2";
+
+if (typeof window !== "undefined") {
+  try {
+    localStorage.removeItem("aut_ce_dynamic_courses");
+    localStorage.removeItem("aut_ce_enrollments");
+    localStorage.removeItem("aut_ce_registered_users");
+  } catch {}
+}
 
 export async function fetchFromAPI(endpoint, options = {}) {
   try {
