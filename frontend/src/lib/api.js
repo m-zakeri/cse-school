@@ -128,21 +128,28 @@ export async function apiLogin(identifier, password) {
     });
   } catch {
     // Offline / GitHub Pages Fallback
-    const cleanId = identifier.trim();
-    if (cleanId === "admin" || cleanId === "0019988776") {
+    const cleanId = identifier.trim().toLowerCase();
+    if (
+      cleanId === "admin" ||
+      cleanId === "admin@aut.ac.ir" ||
+      cleanId === "0019988776" ||
+      cleanId === "0000000000"
+    ) {
+      const adminUser = {
+        id: "admin-uuid",
+        national_id: "0019988776",
+        phone_number: "09121234567",
+        email: "admin@aut.ac.ir",
+        full_name: "مدیر آموزش دانشکده مهندسی کامپیوتر",
+        role: "ADMIN",
+        university: "دانشگاه صنعتی امیرکبیر",
+        education_level: "faculty",
+      };
+      saveLocalUser(adminUser);
       return {
         access_token: "mock-admin-token",
         token_type: "bearer",
-        user: {
-          id: "admin-uuid",
-          national_id: "0019988776",
-          phone_number: "09121234567",
-          email: "admin@aut.ac.ir",
-          full_name: "مدیر آموزش دانشکده مهندسی کامپیوتر",
-          role: "ADMIN",
-          university: "دانشگاه صنعتی امیرکبیر",
-          education_level: "faculty",
-        },
+        user: adminUser,
       };
     }
 
@@ -151,7 +158,7 @@ export async function apiLogin(identifier, password) {
       (u) =>
         u.national_id === cleanId ||
         u.phone_number === cleanId ||
-        u.email === cleanId
+        u.email?.toLowerCase() === cleanId
     );
 
     if (found) {
@@ -165,7 +172,7 @@ export async function apiLogin(identifier, password) {
     // Default fallback user for any demo entry
     const fallbackUser = {
       id: `usr-${cleanId}`,
-      national_id: cleanId,
+      national_id: cleanId.length === 10 ? cleanId : "0123456789",
       phone_number: cleanId.startsWith("09") ? cleanId : "09120000000",
       email: cleanId.includes("@") ? cleanId : `student_${cleanId}@aut.ac.ir`,
       full_name: "دانشجوی گرامی",

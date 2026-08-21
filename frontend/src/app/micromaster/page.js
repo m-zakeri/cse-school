@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import MainLayout from "@/components/Layout/MainLayout";
 import { getCurrentUser } from "@/lib/auth";
 import { apiCreateBatchEnrollment, apiGetUserEnrollments } from "@/lib/api";
@@ -18,6 +19,7 @@ import {
 } from "@/components/Icons";
 
 export default function Micromaster() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
@@ -96,7 +98,7 @@ export default function Micromaster() {
 
   const handleEnrollPackage = async (pkg) => {
     if (!currentUser) {
-      window.location.href = `/login?redirect=/micromaster`;
+      router.push(`/login?redirect=/micromaster`);
       return;
     }
 
