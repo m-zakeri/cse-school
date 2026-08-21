@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { getAssetPath } from "@/lib/formatters";
 import {
   BookOpenIcon,
   AcademicCapIcon,
@@ -36,7 +37,7 @@ function getCourseIcon(key) {
 
 function getCourseImage(course) {
   if (course?.image && (course.image.endsWith(".jpg") || course.image.endsWith(".png"))) {
-    return course.image;
+    return getAssetPath(course.image);
   }
   const idNum = Number(course?.id) || 1;
   const imageMap = {
@@ -48,7 +49,7 @@ function getCourseImage(course) {
     6: "/photos/coursepic/SE.jpg",
     7: "/photos/coursepic/ml.jpg",
   };
-  return imageMap[idNum] || "/photos/coursepic/ml.jpg";
+  return getAssetPath(imageMap[idNum] || "/photos/coursepic/ml.jpg");
 }
 
 const CourseCard = ({ course }) => {

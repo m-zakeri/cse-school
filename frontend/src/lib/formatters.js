@@ -6,6 +6,23 @@ const PERSIAN_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "�
 const ENGLISH_DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 /**
+ * Ensures public assets (photos, icons) have proper basePath on GitHub Pages
+ */
+export function getAssetPath(path) {
+  if (!path) return "";
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("data:")
+  ) {
+    return path;
+  }
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${basePath}${cleanPath}`;
+}
+
+/**
  * Converts English digits in a string or number to Persian digits.
  */
 export function toPersianDigits(val) {

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getAssetPath } from "@/lib/formatters";
 import { ExternalLinkIcon, AcademicCapIcon } from "./Icons";
 
 const InstructorCard = ({ instructor }) => {
@@ -10,7 +11,7 @@ const InstructorCard = ({ instructor }) => {
         <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 p-0.5 shadow-md">
           <div className="w-full h-full bg-white rounded-full p-1 overflow-hidden relative">
             <Image
-              src={instructor.image}
+              src={getAssetPath(instructor.image)}
               alt={instructor.name}
               fill
               className="rounded-full object-cover group-hover:scale-105 transition-transform duration-300"

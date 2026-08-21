@@ -11,6 +11,9 @@ const nextConfig = {
   output: isExport ? "export" : "standalone",
   basePath: basePath || undefined,
   assetPrefix: basePath || undefined,
+  env: {
+    NEXT_PUBLIC_BASE_PATH: basePath || "",
+  },
   images: {
     unoptimized: true,
   },
