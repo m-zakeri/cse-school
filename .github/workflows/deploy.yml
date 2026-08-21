@@ -24,14 +24,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package.json
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
         with:
-          static_site_generator: next
+          enablement: true
 
       - name: Install Frontend Dependencies
         run: cd frontend && npm install --legacy-peer-deps
@@ -39,7 +39,11 @@ jobs:
       - name: Build and Export Next.js
         env:
           NEXT_EXPORT: "true"
-        run: cd frontend && npm run build
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          cd frontend
+          npm run build
+          touch out/.nojekyll
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
