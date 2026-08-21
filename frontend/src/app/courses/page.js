@@ -28,28 +28,58 @@ export default function Courses() {
       try {
         const backendCourses = await apiGetCourses();
         if (backendCourses && backendCourses.length > 0) {
-          const validCourses = backendCourses.filter(
-            (c) => c.title_fa && !c.title_fa.includes("?")
-          );
-          const formatted = validCourses.map((c) => ({
-            id: c.course_number || c.id,
-            title: c.title_fa,
-            englishTitle: c.title_en,
-            instructor: c.instructor?.name || c.instructor_name || "عضو هیئت علمی",
-            units: c.units,
-            level: c.level,
-            capacity: c.capacity,
-            courseLevel: c.course_level,
-            field: c.field || (c.title_fa.includes("هوش") || c.title_fa.includes("ماشین") ? "هوش مصنوعی" : c.title_fa.includes("ابر") ? "رایانش ابری و زیرساخت" : "مهندسی نرم‌افزار"),
-            price: Number(c.price),
-            description: c.description || c.field,
-            image: `/photos/coursepic/${
-              c.course_number === 1 ? "ml.jpg" :
-              c.course_number === 2 ? "ST.jpg" :
-              c.course_number === 3 ? "AP.jpg" :
-              c.course_number === 5 ? "AP.jpg" : "SE.jpg"
-            }`,
-          }));
+          const validCourses = backendCourses.filter((c) => {
+            const t = c.title_fa || c.title || "";
+            return t && !t.includes("?");
+          });
+
+          const formatted = validCourses.map((c) => {
+            const numId = Number(c.course_number || c.id) || 1;
+            const title = c.title_fa || c.title;
+            const engTitle =
+              c.title_en || c.englishTitle || "Specialized Course";
+            const instructor =
+              c.instructor?.name ||
+              c.instructor_name ||
+              c.instructor ||
+              "عضو هیئت علمی";
+            const field =
+              c.field ||
+              (title.includes("هوش") || title.includes("ماشین")
+                ? "هوش مصنوعی"
+                : title.includes("ابر")
+                ? "رایانش ابری و زیرساخت"
+                : "مهندسی نرم‌افزار");
+
+            return {
+              id: numId,
+              course_number: numId,
+              title,
+              englishTitle: engTitle,
+              instructor,
+              units: c.units || 3,
+              level: c.level || "کارشناسی ارشد",
+              capacity: c.capacity || 30,
+              courseLevel: c.course_level || c.courseLevel || "متوسط",
+              field,
+              price: Number(c.price) || 2500000,
+              description: c.description || field,
+              image:
+                c.image ||
+                `/photos/coursepic/${
+                  numId === 1
+                    ? "ml.jpg"
+                    : numId === 2
+                    ? "ST.jpg"
+                    : numId === 3
+                    ? "AP.jpg"
+                    : numId === 5
+                    ? "AP.jpg"
+                    : "SE.jpg"
+                }`,
+            };
+          });
+
           setCoursesList(formatted);
           return;
         }
@@ -57,30 +87,7 @@ export default function Courses() {
         // Fallback
       }
 
-      const dynamic = getLocalDynamicCourses();
-      if (dynamic.length > 0) {
-        const dynamicFormatted = dynamic.map((c) => ({
-          id: c.course_number || c.id,
-          title: c.title_fa || c.title,
-          englishTitle: c.title_en || c.englishTitle,
-          instructor: c.instructor_name || c.instructor,
-          units: c.units,
-          level: c.level,
-          capacity: c.capacity,
-          courseLevel: c.course_level || "متوسط",
-          field: c.field || "مهندسی نرم‌افزار",
-          price: Number(c.price),
-          description: c.description || c.field,
-          image: "/photos/coursepic/ml.jpg",
-        }));
-        const combined = [
-          ...dynamicFormatted,
-          ...initialCourses.filter(
-            (c) => !dynamicFormatted.some((d) => d.id === c.id)
-          ),
-        ];
-        setCoursesList(combined);
-      }
+      setCoursesList(initialCourses);
     }
 
     loadAllCourses();

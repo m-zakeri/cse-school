@@ -126,15 +126,21 @@ export async function apiLogin(identifier, password) {
       method: "POST",
       body: JSON.stringify({ identifier, password }),
     });
-  } catch {
+  } catch (err) {
     // Offline / GitHub Pages Fallback
     const cleanId = identifier.trim().toLowerCase();
+
+    // 1. Admin login check
     if (
       cleanId === "admin" ||
       cleanId === "admin@aut.ac.ir" ||
       cleanId === "0019988776" ||
       cleanId === "0000000000"
     ) {
+      if (password && password !== "Admin@AUT1404!" && password !== "admin" && password !== "123456") {
+        throw new Error("کلمه عبور وارد شده برای مدیر سامانه نادرست است.");
+      }
+
       const adminUser = {
         id: "admin-uuid",
         national_id: "0019988776",
@@ -153,6 +159,7 @@ export async function apiLogin(identifier, password) {
       };
     }
 
+    // 2. Pre-registered local users
     const localUsers = getLocalUsers();
     const found = localUsers.find(
       (u) =>
@@ -169,24 +176,31 @@ export async function apiLogin(identifier, password) {
       };
     }
 
-    // Default fallback user for any demo entry
-    const fallbackUser = {
-      id: `usr-${cleanId}`,
-      national_id: cleanId.length === 10 ? cleanId : "0123456789",
-      phone_number: cleanId.startsWith("09") ? cleanId : "09120000000",
-      email: cleanId.includes("@") ? cleanId : `student_${cleanId}@aut.ac.ir`,
-      full_name: "دانشجوی گرامی",
-      role: "STUDENT",
-      university: "دانشگاه صنعتی امیرکبیر",
-      education_level: "bachelor_student",
-    };
-    saveLocalUser(fallbackUser);
+    // 3. Demo student sample account
+    if (cleanId === "0123456789" || cleanId === "student@aut.ac.ir") {
+      const demoStudent = {
+        id: "usr-demo-0123456789",
+        national_id: "0123456789",
+        phone_number: "09123456789",
+        email: "student@aut.ac.ir",
+        full_name: "حسین زارعی‌نژاد (دانشجو)",
+        role: "STUDENT",
+        university: "دانشگاه صنعتی امیرکبیر",
+        education_level: "bachelor_student",
+        field_of_study: "مهندسی کامپیوتر",
+      };
+      saveLocalUser(demoStudent);
+      return {
+        access_token: "mock-student-token",
+        token_type: "bearer",
+        user: demoStudent,
+      };
+    }
 
-    return {
-      access_token: "mock-student-token",
-      token_type: "bearer",
-      user: fallbackUser,
-    };
+    // 4. Reject unknown user
+    throw new Error(
+      "کاربری با این مشخصات یافت نشد. لطفاً ابتدا از تب «ثبت‌نام جدید» در سامانه ثبت‌نام نمایید."
+    );
   }
 }
 

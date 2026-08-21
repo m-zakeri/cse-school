@@ -97,44 +97,8 @@ function LoginContent() {
         router.push("/dashboard");
       }
     } catch (err) {
-      // Local Admin fallback check
-      const cleanId = loginIdentifier.trim().toLowerCase();
-      if (
-        cleanId === "admin@aut.ac.ir" ||
-        cleanId === "admin" ||
-        cleanId === "0019988776"
-      ) {
-        const mockAdmin = {
-          id: "admin-uuid",
-          national_id: "0019988776",
-          phone_number: "09121234567",
-          email: "admin@aut.ac.ir",
-          full_name: "مدیر آموزش دانشکده مهندسی کامپیوتر",
-          role: "ADMIN",
-        };
-        saveAuthSession("mock-admin-token", mockAdmin);
-        toast.success("ورود مدیر سامانه با موفقیت انجام شد.");
-        router.push(redirectUrl || "/admin");
-        return;
-      }
-
-      // Local student test fallback
-      if (loginIdentifier.length === 10 && loginPassword.length >= 4) {
-        const mockStudent = {
-          id: "student-uuid",
-          national_id: loginIdentifier,
-          phone_number: "09120000000",
-          email: "student@aut.ac.ir",
-          full_name: "دانشجوی گرامی",
-          role: "STUDENT",
-        };
-        saveAuthSession("mock-student-token", mockStudent);
-        toast.success("ورود دانشجو با موفقیت انجام شد.");
-        router.push(redirectUrl || "/dashboard");
-        return;
-      }
-
-      const msg = err.message || "اطلاعات کاربری یا کلمه عبور وارد شده نادرست است.";
+      const msg =
+        err.message || "اطلاعات کاربری یا کلمه عبور وارد شده نادرست است.";
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
