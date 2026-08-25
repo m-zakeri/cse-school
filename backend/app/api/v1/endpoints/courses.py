@@ -6,6 +6,8 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
+from app.core.deps import get_current_admin
+from app.models.user import User
 from app.models.course import Course, SyllabusTopic
 from app.models.instructor import Instructor
 from app.models.term import Term
@@ -34,6 +36,7 @@ async def get_courses(
 async def create_course(
     course_in: CourseCreate,
     db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
 ) -> Any:
     """ایجاد و تعریف دوره جدید به همراه سرفصل‌ها توسط ادمین"""
     # 1. Generate slug if not provided
@@ -169,6 +172,7 @@ async def get_course_detail(
 async def delete_course(
     course_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
 ) -> None:
     """حذف یا غیرفعال‌سازی دوره توسط ادمین"""
     stmt = select(Course).where(Course.id == course_id)

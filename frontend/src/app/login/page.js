@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
-import { apiLogin, apiRegister, apiSendOTP, apiVerifyOTP } from "@/lib/api";
+import { apiLogin, apiRegister } from "@/lib/api";
 import { saveAuthSession, getCurrentUser } from "@/lib/auth";
 import { isValidIranianNationalCode, toPersianDigits } from "@/lib/formatters";
 import { useToast } from "@/components/UI/ToastProvider";
@@ -15,7 +15,6 @@ import {
   CheckCircleIcon,
   ChevronLeftIcon,
   UserPlusIcon,
-  ClockIcon,
 } from "@/components/Icons";
 
 function LoginContent() {
@@ -25,7 +24,7 @@ function LoginContent() {
   const redirectUrl = searchParams.get("redirect") || "";
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState(initialTab); // "LOGIN" | "OTP" | "SIGNUP"
+  const [activeTab, setActiveTab] = useState(initialTab); // "LOGIN" | "SIGNUP"
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -33,13 +32,6 @@ function LoginContent() {
   // Standard Login form state
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-
-  // OTP Login / Password Reset state
-  const [otpIdentifier, setOtpIdentifier] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [otpNewPassword, setOtpNewPassword] = useState("");
-  const [otpStep, setOtpStep] = useState(1); // 1: Request, 2: Verify
-  const [countdown, setCountdown] = useState(0);
 
   // Signup form state
   const [signupData, setSignupData] = useState({
@@ -66,16 +58,6 @@ function LoginContent() {
     }
   }, [redirectUrl, router]);
 
-  useEffect(() => {
-    let timer;
-    if (countdown > 0) {
-      timer = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [countdown]);
-
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -99,69 +81,6 @@ function LoginContent() {
     } catch (err) {
       const msg =
         err.message || "اطلاعات کاربری یا کلمه عبور وارد شده نادرست است.";
-      setErrorMessage(msg);
-      toast.error(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendOTP = async (e) => {
-    e.preventDefault();
-    if (!otpIdentifier.trim()) {
-      setErrorMessage("لطفاً شماره همراه، ایمیل یا کد ملی خود را وارد نمایید.");
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage("");
-
-    try {
-      const res = await apiSendOTP(otpIdentifier.trim());
-      setOtpStep(2);
-      setCountdown(120);
-      toast.info(`کد تأیید ارسال شد: ${res.debug_code || "12345"}`);
-      setSuccessMessage(res.message || "کد تأیید ارسال گردید.");
-    } catch (err) {
-      // Fallback
-      setOtpStep(2);
-      setCountdown(120);
-      toast.info("کد تأیید آزمایشی: ۱۲۳۴۵");
-      setSuccessMessage("کد تأیید ارسال گردید.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async (e) => {
-    e.preventDefault();
-    if (!otpCode.trim()) {
-      setErrorMessage("لطفاً کد تأیید دریافتی را وارد نمایید.");
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage("");
-
-    try {
-      const res = await apiVerifyOTP({
-        identifier: otpIdentifier.trim(),
-        code: otpCode.trim(),
-        new_password: otpNewPassword.trim() || undefined,
-      });
-
-      saveAuthSession(res.access_token, res.user);
-      toast.success("احراز هویت با موفقیت انجام شد.");
-
-      if (redirectUrl) {
-        router.push(redirectUrl);
-      } else if (res.user.role === "ADMIN") {
-        router.push("/admin");
-      } else {
-        router.push("/dashboard");
-      }
-    } catch (err) {
-      const msg = err.message || "کد وارد شده نادرست یا منقضی شده است.";
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
@@ -304,23 +223,6 @@ function LoginContent() {
           <button
             type="button"
             onClick={() => {
-              setActiveTab("OTP");
-              setErrorMessage("");
-              setSuccessMessage("");
-              setOtpStep(1);
-            }}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-              activeTab === "OTP"
-                ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-            }`}
-          >
-            <ClockIcon className="w-3.5 h-3.5" />
-            <span>کد یکبارمصرف</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
               setActiveTab("SIGNUP");
               setErrorMessage("");
               setSuccessMessage("");
@@ -369,22 +271,9 @@ function LoginContent() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
-                    کلمه عبور
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("OTP");
-                      setOtpIdentifier(loginIdentifier);
-                      setOtpStep(1);
-                    }}
-                    className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold"
-                  >
-                    فراموشی رمز عبور؟
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                  کلمه عبور
+                </label>
                 <input
                   type="password"
                   required
@@ -412,119 +301,7 @@ function LoginContent() {
             </form>
           )}
 
-          {/* TAB 2: OTP / Password Reset */}
-          {activeTab === "OTP" && (
-            <div>
-              {otpStep === 1 ? (
-                <form onSubmit={handleSendOTP} className="space-y-4">
-                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-2">
-                    جهت ورود سریع یا بازیابی کلمه عبور، کد ملی یا شماره همراه خود را وارد کنید تا کد تأیید ارسال گردد.
-                  </p>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
-                      کد ملی، شماره همراه یا ایمیل
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={otpIdentifier}
-                      onChange={(e) => setOtpIdentifier(e.target.value)}
-                      placeholder="مثال: 09121234567 یا 0012345678"
-                      className="w-full px-4 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isLoading ? (
-                      <span>در حال ارسال کد...</span>
-                    ) : (
-                      <>
-                        <span>دریافت کد یکبارمصرف</span>
-                        <ChevronLeftIcon className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOTP} className="space-y-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-950/50 rounded-xl border border-blue-100 dark:border-blue-900 text-xs text-blue-800 dark:text-blue-300 flex items-center justify-between">
-                    <span>کد ۵ رقمی به {otpIdentifier} ارسال شد.</span>
-                    <button
-                      type="button"
-                      onClick={() => setOtpStep(1)}
-                      className="text-blue-600 underline font-semibold text-[11px]"
-                    >
-                      ویرایش شماره
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
-                      کد ۵ رقمی تأیید
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={6}
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value)}
-                      placeholder="_____ "
-                      className="w-full px-4 py-2.5 text-center tracking-[0.5em] text-base font-mono font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all dir-ltr"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
-                      کلمه عبور جدید (اختیاری)
-                    </label>
-                    <input
-                      type="password"
-                      value={otpNewPassword}
-                      onChange={(e) => setOtpNewPassword(e.target.value)}
-                      placeholder="در صورت تمایل به تغییر رمز، وارد کنید"
-                      className="w-full px-4 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    {countdown > 0 ? (
-                      <span>امکان ارسال مجدد تا {toPersianDigits(countdown)} ثانیه دیگر</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleSendOTP}
-                        className="text-blue-600 font-bold hover:underline"
-                      >
-                        ارسال مجدد کد تأیید
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all text-xs flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isLoading ? (
-                      <span>در حال اعتبارسنجی...</span>
-                    ) : (
-                      <>
-                        <CheckCircleIcon className="w-4 h-4" />
-                        <span>تأیید و ورود به سامانه</span>
-                      </>
-                    )}
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: SIGNUP */}
+          {/* TAB 2: SIGNUP */}
           {activeTab === "SIGNUP" && (
             <form onSubmit={handleSignupSubmit} className="space-y-3.5">
               <div>

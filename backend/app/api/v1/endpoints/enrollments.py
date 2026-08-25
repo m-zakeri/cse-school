@@ -4,11 +4,12 @@ from typing import List, Any, Optional
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import get_password_hash
 from app.core.database import get_db
+from app.core.deps import get_current_admin, get_current_user, get_optional_user
 from app.models.user import User, UserRole
 from app.models.course import Course
 from app.models.instructor import Instructor
@@ -54,6 +55,7 @@ def resolve_course_query(c_id):
 async def create_enrollment(
     enroll_in: EnrollmentCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ) -> Any:
     """ثبت‌نام مستقیم در یک دوره با ایجاد یا بازیابی حساب کاربری"""
     stmt_course = resolve_course_query(enroll_in.course_id)
@@ -69,14 +71,18 @@ async def create_enrollment(
     res_user = await db.execute(stmt_user)
     user = res_user.scalars().first()
 
-    raw_pw = enroll_in.password or enroll_in.national_id
     if not user:
+        if not enroll_in.password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="برای ایجاد حساب کاربری، انتخاب کلمه عبور الزامی است.",
+            )
         user = User(
             national_id=enroll_in.national_id,
             phone_number=enroll_in.phone_number,
             email=enroll_in.email,
             full_name=enroll_in.full_name,
-            hashed_password=get_password_hash(raw_pw),
+            hashed_password=get_password_hash(enroll_in.password),
             education_level=enroll_in.education_level,
             university=enroll_in.university,
             field_of_study=enroll_in.field_of_study,
@@ -86,11 +92,13 @@ async def create_enrollment(
         db.add(user)
         await db.flush()
     else:
-        user.full_name = enroll_in.full_name
-        user.phone_number = enroll_in.phone_number
-        user.email = enroll_in.email
-        if enroll_in.password:
-            user.hashed_password = get_password_hash(enroll_in.password)
+        # The account already exists: never let an anonymous request overwrite its
+        # credentials or contact details. Only the account owner may enroll into it.
+        if current_user is None or current_user.id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="حسابی با این کد ملی موجود است. لطفاً ابتدا وارد سامانه شوید.",
+            )
         if enroll_in.education_level:
             user.education_level = enroll_in.education_level
         if enroll_in.university:
@@ -137,6 +145,7 @@ async def create_enrollment(
 async def create_batch_enrollments(
     batch_in: BatchEnrollmentCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ) -> Any:
     """ثبت‌نام همزمان در چند دوره از پرتال ثبت‌نام"""
     if not batch_in.course_ids:
@@ -149,14 +158,18 @@ async def create_batch_enrollments(
     res_user = await db.execute(stmt_user)
     user = res_user.scalars().first()
 
-    raw_pw = batch_in.password or batch_in.national_id
     if not user:
+        if not batch_in.password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="برای ایجاد حساب کاربری، انتخاب کلمه عبور الزامی است.",
+            )
         user = User(
             national_id=batch_in.national_id,
             phone_number=batch_in.phone_number,
             email=batch_in.email,
             full_name=batch_in.full_name,
-            hashed_password=get_password_hash(raw_pw),
+            hashed_password=get_password_hash(batch_in.password),
             education_level=batch_in.education_level,
             university=batch_in.university,
             field_of_study=batch_in.field_of_study,
@@ -166,11 +179,13 @@ async def create_batch_enrollments(
         db.add(user)
         await db.flush()
     else:
-        user.full_name = batch_in.full_name
-        user.phone_number = batch_in.phone_number
-        user.email = batch_in.email
-        if batch_in.password:
-            user.hashed_password = get_password_hash(batch_in.password)
+        # Existing account: only its owner may enroll into it, and their
+        # credentials/contact details are never overwritten from this request.
+        if current_user is None or current_user.id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="حسابی با این کد ملی موجود است. لطفاً ابتدا وارد سامانه شوید.",
+            )
         if batch_in.education_level:
             user.education_level = batch_in.education_level
         if batch_in.university:
@@ -222,10 +237,23 @@ async def create_batch_enrollments(
 async def get_user_enrollments(
     identifier: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """دریافت لیست دوره‌های ثبت‌نام‌شده کاربر با کد ملی، شماره تلفن یا ایمیل"""
-    from sqlalchemy import or_
     clean_id = identifier.strip()
+
+    # A student may only read their own records; admins may read anyone's.
+    owns_identifier = clean_id in (
+        current_user.national_id,
+        current_user.phone_number,
+        current_user.email,
+    )
+    if not owns_identifier and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="شما تنها مجاز به مشاهده سوابق تحصیلی خود هستید.",
+        )
+
     stmt = (
         select(Enrollment)
         .join(User, Enrollment.user_id == User.id)
@@ -247,6 +275,7 @@ async def get_user_enrollments(
 @router.get("/admin/all", response_model=List[EnrollmentRead])
 async def get_all_enrollments_admin(
     db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
 ) -> Any:
     """دریافت تمامی ثبت‌نام‌ها برای پنل مدیریت آموزش"""
     stmt = (
@@ -263,6 +292,7 @@ async def update_enrollment_status(
     enrollment_id: uuid.UUID,
     update_in: EnrollmentStatusUpdate,
     db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
 ) -> Any:
     """تغییر وضعیت ثبت‌نام یا ثبت نمره توسط ادمین"""
     stmt = (
@@ -291,6 +321,7 @@ async def update_enrollment_status(
 async def delete_enrollment_admin(
     enrollment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
 ) -> Any:
     """حذف پرونده ثبت‌نام دانشجو از دوره توسط ادمین"""
     stmt = select(Enrollment).where(Enrollment.id == enrollment_id)
@@ -311,6 +342,7 @@ async def delete_enrollment_admin(
 async def drop_enrollment_student(
     enrollment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Any:
     """انصراف دانشجو از دوره در پرتال"""
     stmt = select(Enrollment).where(Enrollment.id == enrollment_id)
@@ -322,29 +354,13 @@ async def drop_enrollment_student(
             detail="پرونده ثبت‌نام یافت نشد.",
         )
 
+    if enr.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="شما تنها مجاز به انصراف از دوره‌های خود هستید.",
+        )
+
     await db.delete(enr)
     await db.commit()
     return {"message": "انصراف شما از دوره با موفقیت ثبت گردید."}
-
-
-@router.get("/user/{national_id}", response_model=List[EnrollmentRead])
-async def get_user_enrollments(
-    national_id: str,
-    db: AsyncSession = Depends(get_db),
-) -> Any:
-    """دریافت لیست تمامی دوره‌های ثبت‌نامی یک دانشجو بر اساس کد ملی"""
-    stmt_user = select(User).where(User.national_id == national_id)
-    res_user = await db.execute(stmt_user)
-    user = res_user.scalars().first()
-    if not user:
-        return []
-
-    stmt = (
-        select(Enrollment)
-        .where(Enrollment.user_id == user.id)
-        .options(*enrollment_options())
-        .order_by(desc(Enrollment.created_at))
-    )
-    res = await db.execute(stmt)
-    return res.scalars().all()
 
