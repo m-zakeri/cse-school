@@ -30,6 +30,9 @@ services:
     volumes:
       - ./backend:/app
     environment:
+      # Optional in development: when unset the backend generates a throwaway key
+      # at startup. Set it to keep tokens valid across restarts.
+      - SECRET_KEY=${SECRET_KEY:-}
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres-dev:5432/ce_school_db
       - REDIS_URL=redis://redis-dev:6379/0
       - ENVIRONMENT=development

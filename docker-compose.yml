@@ -22,7 +22,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/ce_school_db
+      # `:?` makes compose refuse to start when the value is missing, so a
+      # production stack can never silently fall back to a shared key.
+      # See .env.example for how to generate each value.
+      - "SECRET_KEY=${SECRET_KEY:?missing SECRET_KEY, see .env.example}"
+      - "FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:?missing FIRST_SUPERUSER_PASSWORD, see .env.example}"
+      - "FIRST_SUPERUSER_EMAIL=${FIRST_SUPERUSER_EMAIL:-admin@aut.ac.ir}"
+      - "DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?missing POSTGRES_PASSWORD, see .env.example}@postgres:5432/ce_school_db"
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=production
     restart: unless-stopped
@@ -39,7 +45,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?missing POSTGRES_PASSWORD, see .env.example}"
       POSTGRES_DB: ce_school_db
     ports:
       - "5432:5432"
