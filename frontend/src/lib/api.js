@@ -15,14 +15,26 @@ if (typeof window !== "undefined") {
   } catch {}
 }
 
+function getAuthToken() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("aut_ce_school_auth_v2");
+    return raw ? JSON.parse(raw)?.token || null : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchFromAPI(endpoint, options = {}) {
   try {
+    const token = getAuthToken();
     const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
-      ...options,
     });
 
     if (!res.ok) {
@@ -35,6 +47,12 @@ export async function fetchFromAPI(endpoint, options = {}) {
     // Only warn in development
     if (process.env.NODE_ENV !== "production") {
       console.warn(`API Error [${endpoint}]:`, error.message);
+    }
+    if (error instanceof TypeError) {
+      // fetch() only throws TypeError when the request never reached the server.
+      throw new Error(
+        "ارتباط با سرور سامانه برقرار نشد. لطفاً از اتصال شبکه اطمینان حاصل کرده و مجدداً تلاش نمایید."
+      );
     }
     throw error;
   }
@@ -129,124 +147,22 @@ export function saveLocalUser(user) {
 // Auth API with Fallback
 // ----------------------------------------------------
 export async function apiLogin(identifier, password) {
-  try {
-    return await fetchFromAPI("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ identifier, password }),
-    });
-  } catch (err) {
-    // Offline / GitHub Pages Fallback
-    const cleanId = identifier.trim().toLowerCase();
-
-    // 1. Admin login check
-    if (
-      cleanId === "admin" ||
-      cleanId === "admin@aut.ac.ir" ||
-      cleanId === "0019988776" ||
-      cleanId === "0000000000"
-    ) {
-      if (password && password !== "Admin@AUT1404!" && password !== "admin" && password !== "123456") {
-        throw new Error("کلمه عبور وارد شده برای مدیر سامانه نادرست است.");
-      }
-
-      const adminUser = {
-        id: "admin-uuid",
-        national_id: "0019988776",
-        phone_number: "09121234567",
-        email: "admin@aut.ac.ir",
-        full_name: "مدیر آموزش دانشکده مهندسی کامپیوتر",
-        role: "ADMIN",
-        university: "دانشگاه صنعتی امیرکبیر",
-        education_level: "faculty",
-      };
-      saveLocalUser(adminUser);
-      return {
-        access_token: "mock-admin-token",
-        token_type: "bearer",
-        user: adminUser,
-      };
-    }
-
-    // 2. Pre-registered local users
-    const localUsers = getLocalUsers();
-    const found = localUsers.find(
-      (u) =>
-        u.national_id === cleanId ||
-        u.phone_number === cleanId ||
-        u.email?.toLowerCase() === cleanId
-    );
-
-    if (found) {
-      return {
-        access_token: "mock-student-token",
-        token_type: "bearer",
-        user: found,
-      };
-    }
-
-    // 3. Reject unknown user
-    throw new Error(
-      "کاربری با این مشخصات یافت نشد. لطفاً ابتدا از تب «ثبت‌نام جدید» در سامانه ثبت‌نام نمایید."
-    );
-  }
+  // Authentication is always delegated to the backend. There is deliberately no
+  // offline fallback here: a client-side credential check can be bypassed by the
+  // client and would hand out an ADMIN session to anyone.
+  return await fetchFromAPI("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ identifier, password }),
+  });
 }
 
 export async function apiRegister(userData) {
-  try {
-    return await fetchFromAPI("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(userData),
-    });
-  } catch (err) {
-    // If backend responded with validation/duplicate error, throw it directly
-    if (
-      err.message &&
-      (err.message.includes("قبلاً") ||
-        err.message.includes("ثبت‌نام کرده") ||
-        err.message.includes("نامعتبر") ||
-        err.message.includes("الزامی"))
-    ) {
-      throw err;
-    }
-
-    // Offline / GitHub Pages Fallback: Check duplicates in local database
-    const localUsers = getLocalUsers();
-    const cleanNationalId = userData.national_id.trim();
-    const cleanEmail = userData.email.trim().toLowerCase();
-    const cleanPhone = userData.phone_number.trim();
-
-    // Check duplicate national ID
-    if (localUsers.some((u) => u.national_id === cleanNationalId)) {
-      throw new Error("کاربری با این کد ملی قبلاً در سامانه ثبت‌نام کرده است.");
-    }
-    // Check duplicate email
-    if (localUsers.some((u) => u.email?.toLowerCase() === cleanEmail)) {
-      throw new Error("کاربری با این آدرس ایمیل قبلاً در سامانه ثبت‌نام کرده است.");
-    }
-    // Check duplicate phone number
-    if (localUsers.some((u) => u.phone_number === cleanPhone)) {
-      throw new Error("کاربری با این شماره تلفن همراه قبلاً در سامانه ثبت‌نام کرده است.");
-    }
-
-    const createdUser = {
-      id: `usr-${Date.now()}`,
-      national_id: cleanNationalId,
-      phone_number: cleanPhone,
-      email: cleanEmail,
-      full_name: userData.full_name.trim(),
-      password: userData.password,
-      role: "STUDENT",
-      university: userData.university || "دانشگاه صنعتی امیرکبیر",
-      education_level: userData.education_level || "bachelor_student",
-      field_of_study: userData.field_of_study || "مهندسی کامپیوتر",
-    };
-    saveLocalUser(createdUser);
-    return {
-      access_token: "mock-student-token",
-      token_type: "bearer",
-      user: createdUser,
-    };
-  }
+  // Like login, account creation must go through the backend so that uniqueness
+  // and password hashing are enforced server-side.
+  return await fetchFromAPI("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(userData),
+  });
 }
 
 // ----------------------------------------------------
@@ -463,81 +379,10 @@ export async function apiDropEnrollment(enrollmentId) {
 }
 
 export async function apiUpdateUserProfile(profileData) {
-  try {
-    return await fetchFromAPI("/auth/profile", {
-      method: "PUT",
-      body: JSON.stringify(profileData),
-    });
-  } catch {
-    saveLocalUser(profileData);
-    return profileData;
-  }
-}
-
-export async function apiSendOTP(identifier) {
-  try {
-    return await fetchFromAPI("/auth/otp/request", {
-      method: "POST",
-      body: JSON.stringify({ identifier }),
-    });
-  } catch {
-    // Offline Mock OTP
-    return {
-      message: "کد تأیید یکبارمصرف ارسال شد.",
-      mock_code: "123456",
-      expires_in: 120,
-    };
-  }
-}
-
-export async function apiVerifyOTP(data) {
-  try {
-    return await fetchFromAPI("/auth/otp/verify", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  } catch {
-    // Offline verification for existing user
-    const cleanId = data.identifier.trim().toLowerCase();
-    const localUsers = getLocalUsers();
-    const found = localUsers.find(
-      (u) =>
-        u.national_id === cleanId ||
-        u.phone_number === cleanId ||
-        u.email?.toLowerCase() === cleanId
-    );
-
-    if (found) {
-      if (data.new_password) {
-        found.password = data.new_password;
-        saveLocalUser(found);
-      }
-      return {
-        access_token: "mock-otp-token",
-        token_type: "bearer",
-        user: found,
-      };
-    }
-
-    if (cleanId === "admin" || cleanId === "admin@aut.ac.ir" || cleanId === "0019988776") {
-      const adminUser = {
-        id: "admin-uuid",
-        national_id: "0019988776",
-        phone_number: "09121234567",
-        email: "admin@aut.ac.ir",
-        full_name: "مدیر آموزش دانشکده مهندسی کامپیوتر",
-        role: "ADMIN",
-        university: "دانشگاه صنعتی امیرکبیر",
-      };
-      return {
-        access_token: "mock-admin-token",
-        token_type: "bearer",
-        user: adminUser,
-      };
-    }
-
-    throw new Error(
-      "کاربری با این مشخصات در سامانه یافت نشد. لطفاً ابتدا در سامانه ثبت‌نام نمایید."
-    );
-  }
+  // Server-side only: the backend resolves the target account from the bearer
+  // token, so a client cannot edit someone else's profile.
+  return await fetchFromAPI("/auth/profile", {
+    method: "PUT",
+    body: JSON.stringify(profileData),
+  });
 }

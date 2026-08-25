@@ -164,17 +164,18 @@ export default function StudentDashboard() {
     setActionMessage({ text: "", type: "" });
 
     try {
+      // The backend identifies the account from the bearer token, and requires the
+      // current password before it will change the email or phone number.
       const payload = {
-        national_id: user.national_id,
         full_name: profileForm.full_name,
         phone_number: profileForm.phone_number,
         email: profileForm.email,
         university: profileForm.university,
+        ...(profileForm.current_password
+          ? { current_password: profileForm.current_password }
+          : {}),
         ...(profileForm.new_password
-          ? {
-              current_password: profileForm.current_password,
-              new_password: profileForm.new_password,
-            }
+          ? { new_password: profileForm.new_password }
           : {}),
       };
 

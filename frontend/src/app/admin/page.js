@@ -144,25 +144,8 @@ export default function AdminDashboard() {
         return;
       }
       setLoginError("حساب کاربری شما دارای سطح دسترسی مدیریت نیست.");
-    } catch {
-      if (
-        loginEmail.trim().toLowerCase() === "admin@aut.ac.ir" &&
-        loginPassword === "Admin@AUT1404!"
-      ) {
-        const mockAdmin = {
-          id: "admin-uuid",
-          national_id: "0000000000",
-          phone_number: "09120000000",
-          email: "admin@aut.ac.ir",
-          full_name: "مدیر سامانه آموزش‌های تخصصی",
-          role: "ADMIN",
-        };
-        saveAuthSession("mock-admin-token", mockAdmin);
-        setAdminUser(mockAdmin);
-        loadData();
-        return;
-      }
-      setLoginError("پست الکترونیکی یا کلمه عبور مدیریت نادرست است.");
+    } catch (err) {
+      setLoginError(err?.message || "پست الکترونیکی یا کلمه عبور مدیریت نادرست است.");
     } finally {
       setIsLoggingIn(false);
     }
