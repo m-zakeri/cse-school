@@ -4,7 +4,6 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 const DYNAMIC_COURSES_KEY = "aut_ce_dynamic_courses_v2";
-const ENROLLMENTS_STORAGE_KEY = "aut_ce_enrollments_v2";
 const USERS_STORAGE_KEY = "aut_ce_registered_users_v2";
 
 if (typeof window !== "undefined") {
@@ -12,6 +11,9 @@ if (typeof window !== "undefined") {
     localStorage.removeItem("aut_ce_dynamic_courses");
     localStorage.removeItem("aut_ce_enrollments");
     localStorage.removeItem("aut_ce_registered_users");
+    // Enrollments are served straight from the backend now. Drop the old cache so
+    // a stale entry can never be shown as if it were a real registration.
+    localStorage.removeItem("aut_ce_enrollments_v2");
   } catch {}
 }
 
@@ -90,37 +92,6 @@ export function deleteLocalDynamicCourse(courseId) {
     (c) => c.id !== courseId && c.course_number !== courseId
   );
   localStorage.setItem(DYNAMIC_COURSES_KEY, JSON.stringify(updated));
-}
-
-// ----------------------------------------------------
-// Local Storage Dynamic Enrollments Fallback
-// ----------------------------------------------------
-export function getLocalEnrollments() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(ENROLLMENTS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveLocalEnrollments(enrollmentList) {
-  if (typeof window === "undefined") return;
-  const current = getLocalEnrollments();
-  const newIds = new Set(enrollmentList.map((e) => e.id));
-  const merged = [
-    ...enrollmentList,
-    ...current.filter((e) => !newIds.has(e.id)),
-  ];
-  localStorage.setItem(ENROLLMENTS_STORAGE_KEY, JSON.stringify(merged));
-}
-
-export function deleteLocalEnrollment(enrollmentId) {
-  if (typeof window === "undefined") return;
-  const current = getLocalEnrollments();
-  const updated = current.filter((e) => e.id !== enrollmentId);
-  localStorage.setItem(ENROLLMENTS_STORAGE_KEY, JSON.stringify(updated));
 }
 
 // ----------------------------------------------------
@@ -243,139 +214,44 @@ export async function apiDeleteCourse(courseId) {
 // ----------------------------------------------------
 // Enrollments API with Fallback
 // ----------------------------------------------------
+// Enrollments are academic records: the backend is the single source of truth.
+// These helpers deliberately have no offline fallback — inventing a local record
+// would tell a student they are registered when the server rejected the request.
 export async function apiCreateBatchEnrollment(data) {
-  try {
-    const res = await fetchFromAPI("/enrollments/batch", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-    saveLocalEnrollments(res);
-    return res;
-  } catch {
-    // Offline / GitHub Pages Fallback
-    const trackingCode = `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    const allCourses = [...getLocalDynamicCourses(), ...sampleCourses];
-
-    const generated = data.course_ids.map((cId, idx) => {
-      const courseObj = allCourses.find(
-        (c) => String(c.id) === String(cId) || String(c.course_number) === String(cId)
-      ) || {
-        id: cId,
-        title_fa: `دوره آموزشی ${cId}`,
-        title: `دوره آموزشی ${cId}`,
-        instructor_name: "عضو هیئت علمی",
-        units: 3,
-      };
-
-      return {
-        id: `enr-${Date.now()}-${idx}`,
-        user_id: `usr-${data.national_id}`,
-        course_id: courseObj.id,
-        tracking_code: trackingCode,
-        status: "APPROVED",
-        final_grade: null,
-        created_at: new Date().toISOString(),
-        course: {
-          id: courseObj.id,
-          course_number: courseObj.course_number || courseObj.id,
-          title_fa: courseObj.title_fa || courseObj.title,
-          title_en: courseObj.title_en || courseObj.englishTitle,
-          instructor_name: courseObj.instructor_name || courseObj.instructor,
-          units: courseObj.units,
-          level: courseObj.level || "کارشناسی ارشد",
-          price: courseObj.price || 2500000,
-        },
-        user: {
-          national_id: data.national_id,
-          phone_number: data.phone_number,
-          email: data.email,
-          full_name: data.full_name,
-        },
-      };
-    });
-
-    saveLocalEnrollments(generated);
-    return generated;
-  }
+  return await fetchFromAPI("/enrollments/batch", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function apiGetUserEnrollments(identifier) {
   const cleanId = String(identifier).trim();
-  try {
-    const res = await fetchFromAPI(`/enrollments/user/${cleanId}`);
-    if (Array.isArray(res) && res.length > 0) {
-      saveLocalEnrollments(res);
-      return res;
-    }
-  } catch {
-    // Fallback to local storage
-  }
-
-  const localList = getLocalEnrollments();
-  return localList.filter(
-    (e) =>
-      e.user?.national_id === cleanId ||
-      e.user?.phone_number === cleanId ||
-      e.user?.email === cleanId ||
-      e.user_id === `usr-${cleanId}`
-  );
+  // An empty array is a valid answer ("this student has no courses"), so it is
+  // returned as-is rather than being treated as a miss.
+  return await fetchFromAPI(`/enrollments/user/${cleanId}`);
 }
 
 export async function apiGetAllEnrollmentsAdmin() {
-  try {
-    const res = await fetchFromAPI("/enrollments/admin/all");
-    if (Array.isArray(res) && res.length > 0) {
-      return res;
-    }
-  } catch {
-    // Fallback
-  }
-  return getLocalEnrollments();
+  return await fetchFromAPI("/enrollments/admin/all");
 }
 
 export async function apiUpdateEnrollmentStatus(enrollmentId, status, finalGrade = null) {
-  try {
-    return await fetchFromAPI(`/enrollments/admin/${enrollmentId}/status`, {
-      method: "PUT",
-      body: JSON.stringify({ status, final_grade: finalGrade }),
-    });
-  } catch {
-    const localList = getLocalEnrollments();
-    const updated = localList.map((e) => {
-      if (e.id === enrollmentId) {
-        return {
-          ...e,
-          status,
-          ...(finalGrade !== null ? { final_grade: finalGrade } : {}),
-        };
-      }
-      return e;
-    });
-    localStorage.setItem(ENROLLMENTS_STORAGE_KEY, JSON.stringify(updated));
-    return updated.find((e) => e.id === enrollmentId);
-  }
+  return await fetchFromAPI(`/enrollments/admin/${enrollmentId}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status, final_grade: finalGrade }),
+  });
 }
 
 export async function apiDeleteEnrollmentAdmin(enrollmentId) {
-  try {
-    await fetchFromAPI(`/enrollments/admin/${enrollmentId}`, {
-      method: "DELETE",
-    });
-  } catch {
-    // Offline
-  }
-  deleteLocalEnrollment(enrollmentId);
+  return await fetchFromAPI(`/enrollments/admin/${enrollmentId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function apiDropEnrollment(enrollmentId) {
-  try {
-    await fetchFromAPI(`/enrollments/${enrollmentId}`, {
-      method: "DELETE",
-    });
-  } catch {
-    // Offline
-  }
-  deleteLocalEnrollment(enrollmentId);
+  return await fetchFromAPI(`/enrollments/${enrollmentId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function apiUpdateUserProfile(profileData) {

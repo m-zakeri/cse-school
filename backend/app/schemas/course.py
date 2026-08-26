@@ -1,7 +1,7 @@
 import uuid
 from typing import List, Optional
 from decimal import Decimal
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 
 
 class TopicCreate(BaseModel):
@@ -82,6 +82,15 @@ class CourseListRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @field_serializer("price")
+    def serialize_price(self, value: Decimal) -> int:
+        """The column is Numeric(12, 0); emit a plain integer.
+
+        Without this the driver's Decimal('2.50E+6') serializes as the string
+        "2.50E+6", which naive clients parse as 2.
+        """
+        return int(value)
 
 
 class CourseDetailRead(CourseListRead):

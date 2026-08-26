@@ -46,6 +46,7 @@ export default function StudentDashboard() {
   const [user, setUser] = useState(null);
   const [userEnrollments, setUserEnrollments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState("courses"); // 'courses' | 'announcements' | 'profile'
   const toast = useToast();
 
@@ -95,25 +96,25 @@ export default function StudentDashboard() {
     });
 
     async function loadData() {
-      try {
-        const identifier =
-          currentUser.national_id ||
-          currentUser.phone_number ||
-          currentUser.email;
-        if (identifier) {
-          const enrs = await apiGetUserEnrollments(identifier);
-          if (Array.isArray(enrs)) {
-            setUserEnrollments(enrs);
-            setIsLoading(false);
-            return;
-          }
-        }
-      } catch (err) {
-        console.log("Could not load dynamic user enrollments:", err);
-      }
+      const identifier =
+        currentUser.national_id ||
+        currentUser.phone_number ||
+        currentUser.email;
 
-      setUserEnrollments([]);
-      setIsLoading(false);
+      try {
+        const enrs = await apiGetUserEnrollments(identifier);
+        setUserEnrollments(Array.isArray(enrs) ? enrs : []);
+      } catch (err) {
+        // Surface the failure instead of rendering an empty list, which would
+        // look identical to "you have no courses".
+        setUserEnrollments([]);
+        setLoadError(
+          err.message ||
+            "دریافت فهرست دوره‌های شما از سامانه ممکن نشد. لطفاً صفحه را مجدداً بارگذاری نمایید."
+        );
+      } finally {
+        setIsLoading(false);
+      }
     }
 
     loadData();
@@ -142,14 +143,16 @@ export default function StudentDashboard() {
         setActionMessage({ text: "", type: "" });
 
         try {
-          if (enrollment.id) {
-            await apiDropEnrollment(enrollment.id);
-          }
+          await apiDropEnrollment(enrollment.id);
+          // Only drop it from the UI once the server has actually removed it.
           setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
           toast.success(`انصراف شما از دوره «${courseTitle}» با موفقیت ثبت شد.`);
-        } catch {
-          setUserEnrollments((prev) => prev.filter((e) => e.id !== enrollment.id));
-          toast.success(`انصراف شما از دوره «${courseTitle}» با موفقیت ثبت شد.`);
+        } catch (err) {
+          const errTxt =
+            err.message ||
+            `انصراف از دوره «${courseTitle}» ثبت نشد. لطفاً مجدداً تلاش نمایید.`;
+          setActionMessage({ text: errTxt, type: "error" });
+          toast.error(errTxt);
         } finally {
           setDroppingId(null);
         }
@@ -314,6 +317,14 @@ export default function StudentDashboard() {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Enrollment load failure */}
+      {loadError && (
+        <div className="mb-6 p-4 rounded-2xl text-xs bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-2">
+          <ShieldCheckIcon className="w-4 h-4 shrink-0" />
+          <span>{loadError}</span>
         </div>
       )}
 
