@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import MainLayout from "@/components/Layout/MainLayout";
 import CourseCard from "@/components/CourseCard";
 import { courses as initialCourses } from "@/data/sampleData";
-import { getLocalDynamicCourses, apiGetCourses } from "@/lib/api";
+import { apiGetCourses } from "@/lib/api";
 import { toPersianDigits } from "@/lib/formatters";
 import {
   AcademicCapIcon,

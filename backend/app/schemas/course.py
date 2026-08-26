@@ -15,7 +15,9 @@ class CourseCreate(BaseModel):
     title_fa: str
     title_en: str
     slug: Optional[str] = None
-    instructor_name: str
+    # Either pick an existing instructor by id, or name one (created on demand).
+    instructor_id: Optional[uuid.UUID] = None
+    instructor_name: Optional[str] = None
     field: str = "مهندسی کامپیوتر – نرم‌افزار"
     type: str = "اختصاصی"
     units: str = "۳ واحد"
@@ -38,6 +40,38 @@ class CourseCreate(BaseModel):
     author: Optional[str] = None
     version: str = "۱.۰"
     topics: List[TopicCreate] = []
+
+
+class CourseUpdate(BaseModel):
+    """Every field an admin may edit. Only what is sent gets changed."""
+
+    title_fa: Optional[str] = None
+    title_en: Optional[str] = None
+    instructor_id: Optional[uuid.UUID] = None
+    instructor_name: Optional[str] = None
+    field: Optional[str] = None
+    type: Optional[str] = None
+    units: Optional[str] = None
+    level: Optional[str] = None
+    course_level: Optional[str] = None
+    price: Optional[Decimal] = None
+    capacity: Optional[int] = None
+    prerequisites: Optional[str] = None
+    corequisites: Optional[str] = None
+    prerequisite_topics: Optional[str] = None
+    duration: Optional[str] = None
+    delivery_method: Optional[str] = None
+    description: Optional[str] = None
+    objectives: Optional[List[str]] = None
+    target_audience: Optional[List[str]] = None
+    software_tools: Optional[List[dict]] = None
+    grading_info: Optional[List[dict]] = None
+    references: Optional[List[str]] = None
+    assignments_info: Optional[str] = None
+    author: Optional[str] = None
+    version: Optional[str] = None
+    is_active: Optional[bool] = None
+    topics: Optional[List[TopicCreate]] = None
 
 
 class SyllabusTopicRead(BaseModel):

@@ -17,6 +17,18 @@ class CertificateRead(BaseModel):
         from_attributes = True
 
 
+class CertificateIssue(BaseModel):
+    enrollment_id: uuid.UUID
+
+
+class CertificateAdminRead(CertificateRead):
+    """Certificate row enriched for the admin table."""
+
+    student_name: Optional[str] = None
+    course_title: Optional[str] = None
+    tracking_code: Optional[str] = None
+
+
 class CertificateVerifyResponse(BaseModel):
     is_valid: bool
     serial_number: str
