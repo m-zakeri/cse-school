@@ -6,7 +6,7 @@ import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
 import {
   apiCreateBatchEnrollment,
-  getLocalDynamicCourses,
+  apiGetCourses,
   apiGetUserEnrollments,
 } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
@@ -57,24 +57,24 @@ export default function Register() {
         .catch(() => {});
     }
 
-    // Dynamic courses loading
-    const dynamic = getLocalDynamicCourses();
-    if (dynamic.length > 0) {
-      const dynamicFormatted = dynamic.map((c) => ({
-        id: c.course_number || c.id,
-        title: c.title_fa || c.title,
-        instructor: c.instructor_name || c.instructor,
-        units: c.units,
-        level: c.level,
-      }));
-      const combined = [
-        ...dynamicFormatted,
-        ...courses.filter(
-          (c) => !dynamicFormatted.some((d) => d.id === c.id)
-        ),
-      ];
-      setCoursesList(combined);
-    }
+    // Offer the courses the backend actually has, so a course the admin added,
+    // removed or edited is reflected on the page students register from.
+    apiGetCourses()
+      .then((list) => {
+        if (!Array.isArray(list) || list.length === 0) return;
+        const formatted = list.map((c) => ({
+          id: c.course_number || c.id,
+          title: c.title_fa || c.title,
+          instructor:
+            c.instructor?.name || c.instructor_name || c.instructor || "عضو هیئت علمی",
+          units: c.units || "۳ واحد",
+          level: c.level || "کارشناسی ارشد",
+        }));
+        setCoursesList(formatted);
+      })
+      .catch(() => {
+        // Keep the bundled list as a read-only preview if the API is unreachable.
+      });
   }, []);
 
   const isCourseAlreadyEnrolled = (courseId) => {
@@ -128,32 +128,28 @@ export default function Register() {
 
     try {
       const enrollments = await apiCreateBatchEnrollment(payload);
-      const primaryTracking =
-        enrollments[0]?.tracking_code ||
-        `AUT-1404-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-      // Update local enrolled list
+      // Never invent a tracking code: it is the student's proof of registration,
+      // and one the server did not issue corresponds to no record at all.
+      if (!Array.isArray(enrollments) || enrollments.length === 0) {
+        throw new Error(
+          "ثبت‌نام توسط سامانه تأیید نشد. لطفاً مجدداً تلاش نمایید."
+        );
+      }
+
       setEnrolledCourseIds((prev) => [...prev, ...newCoursesToEnroll]);
+      setSelectedCourses([]);
 
       setSuccessData({
-        trackingCode: primaryTracking,
-        coursesCount: newCoursesToEnroll.length,
+        trackingCode: enrollments[0].tracking_code,
+        coursesCount: enrollments.length,
         studentName: currentUser.full_name,
         nationalId: currentUser.national_id,
       });
-    } catch {
-      // Offline fallback
-      const fallbackTracking = `AUT-1404-${Math.random()
-        .toString(36)
-        .substring(2, 8)
-        .toUpperCase()}`;
-      setEnrolledCourseIds((prev) => [...prev, ...newCoursesToEnroll]);
-      setSuccessData({
-        trackingCode: fallbackTracking,
-        coursesCount: newCoursesToEnroll.length,
-        studentName: currentUser.full_name,
-        nationalId: currentUser.national_id,
-      });
+    } catch (err) {
+      setErrorMessage(
+        err.message || "ثبت‌نام در دوره‌های انتخابی انجام نشد. لطفاً مجدداً تلاش نمایید."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -343,7 +339,6 @@ export default function Register() {
                   return (
                     <label
                       key={course.id}
-                      onClick={() => !alreadyEnrolled && handleCourseToggle(course.id)}
                       className={`flex items-start gap-3.5 p-4 rounded-2xl border transition-all ${
                         alreadyEnrolled
                           ? "border-emerald-200 bg-emerald-50/40 opacity-80 cursor-default"
@@ -352,11 +347,14 @@ export default function Register() {
                           : "border-slate-200/80 hover:border-blue-300 hover:bg-slate-50/80 cursor-pointer"
                       }`}
                     >
+                      {/* The toggle lives on the checkbox itself. Putting it on the
+                          label too would fire twice per click (once for the label,
+                          once for the click it forwards to this input). */}
                       <input
                         type="checkbox"
                         disabled={alreadyEnrolled}
                         checked={alreadyEnrolled || isSelected}
-                        onChange={() => {}}
+                        onChange={() => handleCourseToggle(course.id)}
                         className={`mt-1 rounded w-4 h-4 ${
                           alreadyEnrolled
                             ? "text-emerald-600 cursor-default"
