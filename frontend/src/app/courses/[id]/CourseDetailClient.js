@@ -6,11 +6,7 @@ import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
 import { coursesFullDetails } from "@/data/coursesFullDetails";
-import {
-  apiGetCourseDetail,
-  getLocalDynamicCourses,
-  apiGetUserEnrollments,
-} from "@/lib/api";
+import { apiGetCourseDetail, apiGetUserEnrollments } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import {
   toPersianDigits,
@@ -73,14 +69,6 @@ export default function CourseDetailClient({ params }) {
       // 1. Check sampleData
       if (!isNaN(numId)) {
         localBase = courses.find((c) => c.id === numId);
-      }
-
-      // 2. Check local dynamic courses
-      if (!localBase) {
-        const dynamic = getLocalDynamicCourses();
-        localBase = dynamic.find(
-          (c) => c.id === rawId || c.course_number === numId || c.id === numId
-        );
       }
 
       const localFull = (!isNaN(numId) && coursesFullDetails[numId]) || {};

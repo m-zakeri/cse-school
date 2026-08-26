@@ -1,9 +1,38 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import MainLayout from "@/components/Layout/MainLayout";
 import InstructorCard from "@/components/InstructorCard";
-import { instructors } from "@/data/sampleData";
+import { instructors as sampleInstructors } from "@/data/sampleData";
+import { apiGetInstructors } from "@/lib/api";
 import { UsersIcon, AcademicCapIcon, BuildingIcon } from "@/components/Icons";
 
 export default function Instructors() {
+  const [instructors, setInstructors] = useState(sampleInstructors);
+
+  useEffect(() => {
+    // Show the faculty the admin panel actually manages, not the bundled sample.
+    apiGetInstructors()
+      .then((list) => {
+        if (!Array.isArray(list) || list.length === 0) return;
+        setInstructors(
+          list.map((i) => ({
+            id: i.id,
+            name: i.name,
+            position: i.position,
+            department: i.department,
+            specialization: i.specialization,
+            image: i.image_url,
+            profileLink: i.profile_link,
+            bio: i.bio,
+          }))
+        );
+      })
+      .catch(() => {
+        // Keep the bundled list if the API is unreachable.
+      });
+  }, []);
+
   return (
     <MainLayout>
       {/* Page Title */}

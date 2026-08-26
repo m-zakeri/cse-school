@@ -1,10 +1,18 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, courses, enrollments, payments, certificates
+from app.api.v1.endpoints import (
+    auth,
+    courses,
+    enrollments,
+    instructors,
+    payments,
+    certificates,
+)
 
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & Profile"])
 api_router.include_router(courses.router, prefix="/courses", tags=["Courses & Syllabus"])
+api_router.include_router(instructors.router, prefix="/instructors", tags=["Instructors"])
 api_router.include_router(enrollments.router, prefix="/enrollments", tags=["Enrollments & Registration"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments & Financials"])
 api_router.include_router(certificates.router, prefix="/certificates", tags=["Certificates & Verification"])

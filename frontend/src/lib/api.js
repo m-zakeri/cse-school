@@ -1,9 +1,6 @@
-import { courses as sampleCourses } from "@/data/sampleData";
-
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
-const DYNAMIC_COURSES_KEY = "aut_ce_dynamic_courses_v2";
 const USERS_STORAGE_KEY = "aut_ce_registered_users_v2";
 
 if (typeof window !== "undefined") {
@@ -11,9 +8,10 @@ if (typeof window !== "undefined") {
     localStorage.removeItem("aut_ce_dynamic_courses");
     localStorage.removeItem("aut_ce_enrollments");
     localStorage.removeItem("aut_ce_registered_users");
-    // Enrollments are served straight from the backend now. Drop the old cache so
-    // a stale entry can never be shown as if it were a real registration.
+    // Enrollments and courses are served straight from the backend now. Drop the
+    // old caches so a stale entry can never be shown as if it were real data.
     localStorage.removeItem("aut_ce_enrollments_v2");
+    localStorage.removeItem("aut_ce_dynamic_courses_v2");
   } catch {}
 }
 
@@ -61,40 +59,6 @@ export async function fetchFromAPI(endpoint, options = {}) {
 }
 
 // ----------------------------------------------------
-// Local Storage Dynamic Courses Fallback
-// ----------------------------------------------------
-export function getLocalDynamicCourses() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(DYNAMIC_COURSES_KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    return list.filter((c) => {
-      const title = c.title_fa || c.title || "";
-      const inst = c.instructor_name || c.instructor || "";
-      return !title.includes("?") && !inst.includes("?");
-    });
-  } catch {
-    return [];
-  }
-}
-
-export function saveLocalDynamicCourse(course) {
-  if (typeof window === "undefined") return;
-  const current = getLocalDynamicCourses();
-  const updated = [course, ...current.filter((c) => c.id !== course.id)];
-  localStorage.setItem(DYNAMIC_COURSES_KEY, JSON.stringify(updated));
-}
-
-export function deleteLocalDynamicCourse(courseId) {
-  if (typeof window === "undefined") return;
-  const current = getLocalDynamicCourses();
-  const updated = current.filter(
-    (c) => c.id !== courseId && c.course_number !== courseId
-  );
-  localStorage.setItem(DYNAMIC_COURSES_KEY, JSON.stringify(updated));
-}
-
-// ----------------------------------------------------
 // Local Storage Dynamic Registered Users Fallback
 // ----------------------------------------------------
 export function getLocalUsers() {
@@ -137,78 +101,87 @@ export async function apiRegister(userData) {
 }
 
 // ----------------------------------------------------
-// Courses API with Fallback
+// Courses API — the backend owns the catalogue.
 // ----------------------------------------------------
 export async function apiGetCourses() {
-  try {
-    return await fetchFromAPI("/courses/");
-  } catch {
-    const dyn = getLocalDynamicCourses();
-    return [...dyn, ...sampleCourses];
-  }
+  return await fetchFromAPI("/courses/");
 }
 
 export async function apiGetCourseDetail(identifier) {
-  try {
-    return await fetchFromAPI(`/courses/${identifier}`);
-  } catch {
-    const dyn = getLocalDynamicCourses();
-    const foundDyn = dyn.find(
-      (c) => String(c.id) === String(identifier) || String(c.course_number) === String(identifier)
-    );
-    if (foundDyn) return foundDyn;
-    return sampleCourses.find(
-      (c) => String(c.id) === String(identifier) || String(c.course_number) === String(identifier)
-    );
-  }
+  return await fetchFromAPI(`/courses/${identifier}`);
 }
 
 export async function apiCreateCourse(courseData) {
-  try {
-    const res = await fetchFromAPI("/courses/", {
-      method: "POST",
-      body: JSON.stringify(courseData),
-    });
-    saveLocalDynamicCourse(res);
-    return res;
-  } catch {
-    const fallbackCourse = {
-      id: `dyn-${Date.now()}`,
-      course_number: (Date.now() % 1000) + 8,
-      title_fa: courseData.title_fa,
-      title: courseData.title_fa,
-      title_en: courseData.title_en,
-      englishTitle: courseData.title_en,
-      instructor: courseData.instructor_name,
-      instructor_name: courseData.instructor_name,
-      field: courseData.field,
-      type: courseData.type,
-      units: courseData.units,
-      level: courseData.level,
-      course_level: courseData.course_level,
-      price: courseData.price,
-      capacity: courseData.capacity,
-      description: courseData.description,
-      prerequisites: courseData.prerequisites,
-      topics: courseData.topics || [],
-      objectives: courseData.objectives || [],
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    saveLocalDynamicCourse(fallbackCourse);
-    return fallbackCourse;
-  }
+  // No local fallback: a course that only exists in localStorage is invisible to
+  // students and to every other admin.
+  return await fetchFromAPI("/courses/", {
+    method: "POST",
+    body: JSON.stringify(courseData),
+  });
+}
+
+export async function apiUpdateCourse(courseId, courseData) {
+  return await fetchFromAPI(`/courses/${courseId}`, {
+    method: "PUT",
+    body: JSON.stringify(courseData),
+  });
 }
 
 export async function apiDeleteCourse(courseId) {
-  try {
-    await fetchFromAPI(`/courses/${courseId}`, {
-      method: "DELETE",
-    });
-  } catch {
-    // Offline
-  }
-  deleteLocalDynamicCourse(courseId);
+  return await fetchFromAPI(`/courses/${courseId}`, {
+    method: "DELETE",
+  });
+}
+
+// ----------------------------------------------------
+// Instructors API
+// ----------------------------------------------------
+export async function apiGetInstructors() {
+  return await fetchFromAPI("/instructors/");
+}
+
+export async function apiCreateInstructor(data) {
+  return await fetchFromAPI("/instructors/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateInstructor(instructorId, data) {
+  return await fetchFromAPI(`/instructors/${instructorId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteInstructor(instructorId) {
+  return await fetchFromAPI(`/instructors/${instructorId}`, {
+    method: "DELETE",
+  });
+}
+
+// ----------------------------------------------------
+// Certificates API
+// ----------------------------------------------------
+export async function apiGetCertificatesAdmin() {
+  return await fetchFromAPI("/certificates/admin/all");
+}
+
+export async function apiIssueCertificate(enrollmentId) {
+  return await fetchFromAPI("/certificates/admin/issue", {
+    method: "POST",
+    body: JSON.stringify({ enrollment_id: enrollmentId }),
+  });
+}
+
+export async function apiRevokeCertificate(certificateId) {
+  return await fetchFromAPI(`/certificates/admin/${certificateId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function apiVerifyCertificate(serialNumber) {
+  return await fetchFromAPI(`/certificates/verify/${serialNumber}`);
 }
 
 // ----------------------------------------------------

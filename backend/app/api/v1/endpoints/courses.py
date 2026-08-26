@@ -11,7 +11,12 @@ from app.models.user import User
 from app.models.course import Course, SyllabusTopic
 from app.models.instructor import Instructor
 from app.models.term import Term
-from app.schemas.course import CourseListRead, CourseDetailRead, CourseCreate
+from app.schemas.course import (
+    CourseListRead,
+    CourseDetailRead,
+    CourseCreate,
+    CourseUpdate,
+)
 
 router = APIRouter()
 
@@ -55,19 +60,37 @@ async def create_course(
     max_num_res = await db.execute(select(func.coalesce(func.max(Course.course_number), 0)))
     next_course_number = max_num_res.scalar() + 1
 
-    # 3. Find or Create Instructor
-    inst_name = course_in.instructor_name.strip()
-    res_inst = await db.execute(select(Instructor).where(Instructor.name == inst_name))
-    instructor = res_inst.scalars().first()
-    if not instructor:
-        instructor = Instructor(
-            name=inst_name,
-            position="مدرس دوره تخصصی",
-            department="دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
-            specialization=course_in.field,
+    # 3. Resolve the instructor: an explicit id wins, otherwise find-or-create by name.
+    instructor = None
+    if course_in.instructor_id:
+        res_inst = await db.execute(
+            select(Instructor).where(Instructor.id == course_in.instructor_id)
         )
-        db.add(instructor)
-        await db.flush()
+        instructor = res_inst.scalars().first()
+        if not instructor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="استاد انتخاب‌شده در سامانه یافت نشد.",
+            )
+        inst_name = instructor.name
+    else:
+        inst_name = (course_in.instructor_name or "").strip()
+        if not inst_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="انتخاب استاد یا وارد کردن نام مدرس دوره الزامی است.",
+            )
+        res_inst = await db.execute(select(Instructor).where(Instructor.name == inst_name))
+        instructor = res_inst.scalars().first()
+        if not instructor:
+            instructor = Instructor(
+                name=inst_name,
+                position="مدرس دوره تخصصی",
+                department="دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
+                specialization=course_in.field,
+            )
+            db.add(instructor)
+            await db.flush()
 
     # 4. Get active Term
     res_term = await db.execute(select(Term).where(Term.is_active == True))
@@ -166,6 +189,78 @@ async def get_course_detail(
         )
 
     return course
+
+
+@router.put("/{course_id}", response_model=CourseDetailRead)
+async def update_course(
+    course_id: uuid.UUID,
+    course_in: CourseUpdate,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
+) -> Any:
+    """ویرایش مشخصات و سرفصل‌های دوره توسط ادمین"""
+    stmt = (
+        select(Course)
+        .where(Course.id == course_id)
+        .options(selectinload(Course.topics))
+    )
+    res = await db.execute(stmt)
+    course = res.scalars().first()
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="دوره مورد نظر یافت نشد.",
+        )
+
+    updates = course_in.model_dump(exclude_unset=True)
+    topics = updates.pop("topics", None)
+    instructor_id = updates.pop("instructor_id", None)
+    instructor_name = updates.pop("instructor_name", None)
+
+    if instructor_id:
+        res_inst = await db.execute(select(Instructor).where(Instructor.id == instructor_id))
+        if not res_inst.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="استاد انتخاب‌شده در سامانه یافت نشد.",
+            )
+        course.instructor_id = instructor_id
+    elif instructor_name and instructor_name.strip():
+        name = instructor_name.strip()
+        res_inst = await db.execute(select(Instructor).where(Instructor.name == name))
+        instructor = res_inst.scalars().first()
+        if not instructor:
+            instructor = Instructor(
+                name=name,
+                position="مدرس دوره تخصصی",
+                department="دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
+                specialization=updates.get("field") or course.field,
+            )
+            db.add(instructor)
+            await db.flush()
+        course.instructor_id = instructor.id
+
+    for field, value in updates.items():
+        setattr(course, field, value)
+
+    # Topics are replaced wholesale when provided, so the syllabus always matches
+    # exactly what the admin submitted.
+    if topics is not None:
+        for existing in list(course.topics):
+            await db.delete(existing)
+        await db.flush()
+        for t in topics:
+            db.add(SyllabusTopic(course_id=course.id, **t))
+
+    await db.commit()
+
+    reload_stmt = (
+        select(Course)
+        .where(Course.id == course.id)
+        .options(selectinload(Course.instructor), selectinload(Course.topics))
+    )
+    reload_res = await db.execute(reload_stmt)
+    return reload_res.scalars().first()
 
 
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
