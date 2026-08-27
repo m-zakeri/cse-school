@@ -360,14 +360,22 @@ export default function CourseDetailClient({ params }) {
                 <span>ابزارها و نرم‌افزارهای مورد استفاده</span>
               </h2>
               <div className="flex flex-wrap gap-2">
-                {course.softwareTools.map((tool, i) => (
-                  <span
-                    key={i}
-                    className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900 text-xs font-semibold px-3 py-1.5 rounded-xl"
-                  >
-                    {tool}
-                  </span>
-                ))}
+                {course.softwareTools.map((tool, i) => {
+                  // Backend and local data both store this as { category, tools };
+                  // fall back to rendering a bare string just in case.
+                  const label =
+                    typeof tool === "string"
+                      ? tool
+                      : [tool?.category, tool?.tools].filter(Boolean).join(": ");
+                  return (
+                    <span
+                      key={i}
+                      className="bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200/60 dark:border-blue-900 text-xs font-semibold px-3 py-1.5 rounded-xl"
+                    >
+                      {label}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}
