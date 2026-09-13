@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.init_db import init_db
+from app.core import storage
 from app.api.v1.api import api_router
 
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +21,11 @@ async def lifespan(app: FastAPI):
             await init_db(session)
     except Exception as e:
         logger.warning(f"Note: Database auto-init postponed or offline: {e}")
+
+    try:
+        storage.ensure_bucket()
+    except Exception as e:
+        logger.warning(f"Note: object storage not ready, video uploads will fail until it is: {e}")
     
     yield
     # Shutdown logic

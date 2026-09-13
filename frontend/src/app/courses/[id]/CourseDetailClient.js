@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
+import CourseVideosSection from "@/components/CourseVideosSection";
 import { courses } from "@/data/sampleData";
 import { coursesFullDetails } from "@/data/coursesFullDetails";
 import { apiGetCourseDetail, apiGetUserEnrollments } from "@/lib/api";
@@ -379,6 +380,9 @@ export default function CourseDetailClient({ params }) {
               </div>
             </div>
           )}
+
+          {/* Course Lecture Videos */}
+          <CourseVideosSection courseIdentifier={rawId} />
         </div>
 
         {/* Sidebar Info & Action */}

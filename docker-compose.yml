@@ -31,12 +31,22 @@ services:
       - "DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?missing POSTGRES_PASSWORD, see .env.example}@postgres:5432/ce_school_db"
       - REDIS_URL=redis://redis:6379/0
       - ENVIRONMENT=production
+      # Object storage for course videos. S3_ENDPOINT_PUBLIC is the host the
+      # browser will hit, so in a real deployment set S3_PUBLIC_ENDPOINT to a
+      # publicly reachable URL (e.g. https://media.your-domain.ir).
+      - S3_ENDPOINT_INTERNAL=http://minio:9000
+      - "S3_ENDPOINT_PUBLIC=${S3_PUBLIC_ENDPOINT:-http://localhost:9000}"
+      - "S3_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}"
+      - "S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:?missing MINIO_ROOT_PASSWORD, see .env.example}"
+      - S3_BUCKET=course-videos
     restart: unless-stopped
     container_name: ce-school-backend
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_started
+      minio:
         condition: service_started
 
   postgres:
@@ -66,7 +76,22 @@ services:
     volumes:
       - redis_data:/data
 
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: ce-school-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?missing MINIO_ROOT_PASSWORD, see .env.example}"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
 

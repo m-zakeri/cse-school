@@ -105,6 +105,7 @@ class Course(Base):
     term = relationship("Term", back_populates="courses")
     instructor = relationship("Instructor", back_populates="courses")
     topics = relationship("SyllabusTopic", back_populates="course", cascade="all, delete-orphan", order_by="SyllabusTopic.order_index")
+    videos = relationship("CourseVideo", back_populates="course", cascade="all, delete-orphan", order_by="CourseVideo.order_index")
     enrollments = relationship("Enrollment", back_populates="course")
 
 

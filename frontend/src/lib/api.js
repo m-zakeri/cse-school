@@ -42,7 +42,10 @@ export async function fetchFromAPI(endpoint, options = {}) {
       throw new Error(errorData.detail || `Request failed with status ${res.status}`);
     }
 
-    return await res.json();
+    // 204 (and other empty bodies) have nothing to parse.
+    if (res.status === 204) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
   } catch (error) {
     // Only warn in development
     if (process.env.NODE_ENV !== "production") {
@@ -129,6 +132,62 @@ export async function apiUpdateCourse(courseId, courseData) {
 
 export async function apiDeleteCourse(courseId) {
   return await fetchFromAPI(`/courses/${courseId}`, {
+    method: "DELETE",
+  });
+}
+
+// ----------------------------------------------------
+// Course Videos API
+// ----------------------------------------------------
+// Titles are public so visitors can see what a course covers; `locked` on each
+// item means playback needs an active enrollment. The playback endpoint returns
+// a short-lived signed URL only when the caller is entitled.
+export async function apiGetCourseVideos(identifier) {
+  return await fetchFromAPI(`/courses/${identifier}/videos`);
+}
+
+export async function apiGetVideoPlayback(identifier, videoId) {
+  return await fetchFromAPI(
+    `/courses/${identifier}/videos/${videoId}/playback`
+  );
+}
+
+export async function apiUploadCourseVideo(courseId, formData, onProgress) {
+  // Multipart upload: let the browser set the Content-Type (with boundary),
+  // and use XHR so the admin sees upload progress on large files.
+  return await new Promise((resolve, reject) => {
+    const token = getAuthToken();
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}/courses/${courseId}/videos`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      let body = {};
+      try {
+        body = JSON.parse(xhr.responseText || "{}");
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.detail || `بارگذاری ناموفق بود (${xhr.status})`));
+    };
+    xhr.onerror = () =>
+      reject(new Error("ارتباط با سرور برای بارگذاری ویدیو برقرار نشد."));
+    xhr.send(formData);
+  });
+}
+
+export async function apiUpdateCourseVideo(courseId, videoId, data) {
+  return await fetchFromAPI(`/courses/${courseId}/videos/${videoId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteCourseVideo(courseId, videoId) {
+  return await fetchFromAPI(`/courses/${courseId}/videos/${videoId}`, {
     method: "DELETE",
   });
 }

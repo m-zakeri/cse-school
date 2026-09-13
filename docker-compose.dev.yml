@@ -37,12 +37,19 @@ services:
       - REDIS_URL=redis://redis-dev:6379/0
       - ENVIRONMENT=development
       - RELOAD=true
+      - S3_ENDPOINT_INTERNAL=http://minio-dev:9000
+      - S3_ENDPOINT_PUBLIC=http://localhost:9000
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+      - S3_BUCKET=course-videos
     restart: unless-stopped
     container_name: ce-school-backend-dev
     depends_on:
       postgres-dev:
         condition: service_healthy
       redis-dev:
+        condition: service_started
+      minio-dev:
         condition: service_started
 
   postgres-dev:
@@ -72,7 +79,22 @@ services:
     volumes:
       - redis_dev_data:/data
 
+  minio-dev:
+    image: quay.io/minio/minio:latest
+    container_name: ce-school-minio-dev
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_dev_data:/data
+
 volumes:
   postgres_dev_data:
   redis_dev_data:
+  minio_dev_data:
 

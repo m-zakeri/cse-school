@@ -8,6 +8,7 @@ from app.models.user import User, UserRole
 from app.models.term import Term
 from app.models.instructor import Instructor
 from app.models.course import Course, SyllabusTopic
+from app.models.course_video import CourseVideo  # noqa: F401  (registers the table)
 from app.core.security import get_password_hash
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ async def init_db(session: AsyncSession) -> None:
             "position": "استادیار دانشکده مهندسی کامپیوتر",
             "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
             "specialization": "یادگیری ماشین، داده‌کاوی، پردازش زبان طبیعی و هوش مصنوعی",
+            "image_url": "/photos/teachers/Nazerfard.jpg",
             "profile_link": "https://aut.ac.ir/cv/2144",
         },
         {
@@ -51,6 +53,7 @@ async def init_db(session: AsyncSession) -> None:
             "position": "استادیار دانشکده مهندسی کامپیوتر",
             "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
             "specialization": "مهندسی نرم‌افزار، برنامه‌نویسی شی‌گرا، DevOps و معماری سیستم",
+            "image_url": "/photos/teachers/Taromirad.jpg",
             "profile_link": "https://aut.ac.ir/cv/2376",
         },
         {
@@ -58,6 +61,7 @@ async def init_db(session: AsyncSession) -> None:
             "position": "استادیار دانشکده مهندسی کامپیوتر",
             "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
             "specialization": "آزمون و تضمین کیفیت نرم‌افزار، اصول و الگوهای طراحی، کارآفرینی فناورانه",
+            "image_url": "/photos/teachers/Zakeri.jpg",
             "profile_link": "https://aut.ac.ir/cv/2485",
         },
         {
@@ -65,6 +69,7 @@ async def init_db(session: AsyncSession) -> None:
             "position": "استادیار دانشکده مهندسی کامپیوتر",
             "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
             "specialization": "رایانش ابری، مجازی‌سازی، سامانه‌های توزیع‌شده و کلان‌داده",
+            "image_url": "/photos/teachers/Javadi.jpg",
             "profile_link": "https://aut.ac.ir/cv/2261",
         },
     ]
@@ -78,6 +83,10 @@ async def init_db(session: AsyncSession) -> None:
             session.add(inst)
             await session.flush()
             logger.info(f"Instructor '{inst.name}' seeded.")
+        elif not inst.image_url and inst_data.get("image_url"):
+            # Backfill the profile photo for instructors seeded before it existed.
+            inst.image_url = inst_data["image_url"]
+            logger.info(f"Instructor '{inst.name}' image backfilled.")
         instructor_map[inst.name] = inst
 
     # 4. Check and Seed Courses & Syllabus Topics

@@ -42,6 +42,7 @@ import {
   formatTrackingCode,
 } from "@/lib/formatters";
 import CustomModal from "@/components/UI/CustomModal";
+import CourseVideoManager from "@/components/admin/CourseVideoManager";
 
 // Mirrors CourseCreate on the backend, so an admin can fill in every field the
 // API accepts rather than the handful the form used to expose.
@@ -1829,6 +1830,15 @@ export default function AdminDashboard() {
                 />
               </div>
             </div>
+
+            {editingCourseId ? (
+              <CourseVideoManager courseId={editingCourseId} />
+            ) : (
+              <p className="text-[11px] text-slate-400 border border-dashed border-slate-200 rounded-2xl p-3">
+                برای افزودن ویدیو، ابتدا دوره را ثبت کنید و سپس از فهرست دوره‌ها
+                آن را ویرایش کنید.
+              </p>
+            )}
 
             <div className="pt-4 flex gap-3">
               <button
