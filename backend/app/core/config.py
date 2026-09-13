@@ -45,6 +45,20 @@ class Settings(BaseSettings):
         "http://localhost:8000",
     ]
 
+    # Object storage for course videos (S3-compatible: MinIO locally, Arvan/S3 in prod).
+    # INTERNAL is what the backend uses to reach storage; PUBLIC is the host baked
+    # into presigned URLs handed to the browser, so it must be reachable from there.
+    S3_ENDPOINT_INTERNAL: str = "http://minio:9000"
+    S3_ENDPOINT_PUBLIC: str = "http://localhost:9000"
+    S3_ACCESS_KEY: str = "minioadmin"
+    S3_SECRET_KEY: str = "minioadmin"
+    S3_BUCKET: str = "course-videos"
+    S3_REGION: str = "us-east-1"
+    # How long a playback link stays valid after a student opens a video.
+    VIDEO_URL_EXPIRE_SECONDS: int = 3600
+    # Reject uploads larger than this (bytes). Default 2 GiB.
+    VIDEO_MAX_BYTES: int = 2 * 1024 * 1024 * 1024
+
     class Config:
         case_sensitive = True
         env_file = ".env"

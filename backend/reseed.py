@@ -4,6 +4,7 @@ import logging
 from sqlalchemy import select, delete
 from app.core.database import AsyncSessionLocal
 from app.models.course import Course, SyllabusTopic
+from app.models.course_video import CourseVideo  # noqa: F401  (registers the mapper)
 from app.models.instructor import Instructor
 from app.models.term import Term
 from app.models.enrollment import Enrollment
@@ -111,6 +112,7 @@ instructors_data = [
         "position": "استادیار دانشکده مهندسی کامپیوتر",
         "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
         "specialization": "یادگیری ماشین، داده‌کاوی، پردازش زبان طبیعی و هوش مصنوعی",
+        "image_url": "/photos/teachers/Nazerfard.jpg",
         "profile_link": "https://aut.ac.ir/cv/2144",
     },
     {
@@ -118,6 +120,7 @@ instructors_data = [
         "position": "استادیار دانشکده مهندسی کامپیوتر",
         "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
         "specialization": "مهندسی نرم‌افزار، برنامه‌نویسی شی‌گرا، DevOps و معماری سیستم",
+        "image_url": "/photos/teachers/Taromirad.jpg",
         "profile_link": "https://aut.ac.ir/cv/2376",
     },
     {
@@ -125,6 +128,7 @@ instructors_data = [
         "position": "استادیار دانشکده مهندسی کامپیوتر",
         "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
         "specialization": "آزمون و تضمین کیفیت نرم‌افزار، اصول و الگوهای طراحی، کارآفرینی فناورانه",
+        "image_url": "/photos/teachers/Zakeri.jpg",
         "profile_link": "https://aut.ac.ir/cv/2485",
     },
     {
@@ -132,6 +136,7 @@ instructors_data = [
         "position": "استادیار دانشکده مهندسی کامپیوتر",
         "department": "دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر",
         "specialization": "رایانش ابری، مجازی‌سازی، سامانه‌های توزیع‌شده و کلان‌داده",
+        "image_url": "/photos/teachers/Javadi.jpg",
         "profile_link": "https://aut.ac.ir/cv/2261",
     },
 ]

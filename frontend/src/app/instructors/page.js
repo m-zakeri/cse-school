@@ -16,16 +16,19 @@ export default function Instructors() {
       .then((list) => {
         if (!Array.isArray(list) || list.length === 0) return;
         setInstructors(
-          list.map((i) => ({
-            id: i.id,
-            name: i.name,
-            position: i.position,
-            department: i.department,
-            specialization: i.specialization,
-            image: i.image_url,
-            profileLink: i.profile_link,
-            bio: i.bio,
-          }))
+          list.map((i) => {
+            const fallback = sampleInstructors.find((s) => s.name === i.name);
+            return {
+              id: i.id,
+              name: i.name,
+              position: i.position,
+              department: i.department,
+              specialization: i.specialization,
+              image: i.image_url || fallback?.image || null,
+              profileLink: i.profile_link,
+              bio: i.bio,
+            };
+          })
         );
       })
       .catch(() => {

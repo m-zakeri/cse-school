@@ -39,13 +39,14 @@ ce-school/
 | Backend | Python 3.11, FastAPI | High-performance asynchronous REST API |
 | Database | PostgreSQL 16 (SQLAlchemy 2.0 Async) | ACID-compliant relational storage for courses, enrollments, and transactions |
 | Cache and Queue | Redis 7 | High-speed cache, rate limiting, and task queues |
+| Object Storage | MinIO (S3-compatible) | Stores course lecture videos; streamed to enrolled students via short-lived presigned URLs |
 | DevOps | Docker, Docker Compose | Containerized reproducible environments for development and deployment |
 
 ---
 
 ## Quick Start with Docker
 
-Docker provides a quick setup to run all services (frontend, backend, PostgreSQL, and Redis) in isolated containers.
+Docker provides a quick setup to run all services (frontend, backend, PostgreSQL, Redis, and MinIO) in isolated containers.
 
 ### Development Mode
 
@@ -57,6 +58,7 @@ docker compose -f docker-compose.dev.yml up --build
 - Backend Swagger Documentation: http://localhost:8000/docs
 - PostgreSQL Database: port 5432
 - Redis: port 6379
+- MinIO S3 API: port 9000 &nbsp;·&nbsp; MinIO Console: http://localhost:9001 (user/pass `minioadmin`)
 
 ### Production Mode
 
