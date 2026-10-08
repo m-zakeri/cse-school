@@ -1,10 +1,12 @@
-version: '3.8'
-
 services:
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Baked into the browser bundle at build time, so it must be the URL
+        # the *browser* uses to reach the API.
+        NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}"
     ports:
       - "3000:3000"
     environment:
@@ -13,7 +15,8 @@ services:
     restart: unless-stopped
     container_name: ce-school-frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   backend:
     build:
@@ -58,7 +61,7 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?missing POSTGRES_PASSWORD, see .env.example}"
       POSTGRES_DB: ce_school_db
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -72,7 +75,7 @@ services:
     container_name: ce-school-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
 

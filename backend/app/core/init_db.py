@@ -1,8 +1,8 @@
-import os
 import logging
 from datetime import date
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import DEV_ENVIRONMENTS, settings
 from app.core.database import engine, Base
 from app.models.user import User, UserRole
 from app.models.term import Term
@@ -18,7 +18,12 @@ async def init_db(session: AsyncSession) -> None:
     # 1. Create all tables if they don't exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+        # create_all never alters existing tables, so schema changes made after a
+        # database was first created are applied here. Each statement is idempotent.
+        await conn.execute(
+            text("ALTER TABLE enrollments ALTER COLUMN final_grade TYPE NUMERIC(5, 2)")
+        )
+
     logger.info("Database tables initialized successfully.")
 
     # 2. Check and Seed Active Term (ترم پاییز ۱۴۰۴)
@@ -74,11 +79,20 @@ async def init_db(session: AsyncSession) -> None:
         },
     ]
 
+    # The catalogue below is starter content for a brand-new database. Once any
+    # course exists the admins own it: a course or instructor they renamed or
+    # deleted must not reappear (or be duplicated) on the next restart.
+    catalogue_is_empty = (
+        await session.execute(select(func.count(Course.id)))
+    ).scalar() == 0
+
     instructor_map = {}
     for inst_data in instructors_data:
         res = await session.execute(select(Instructor).where(Instructor.name == inst_data["name"]))
         inst = res.scalars().first()
         if not inst:
+            if not catalogue_is_empty:
+                continue
             inst = Instructor(**inst_data)
             session.add(inst)
             await session.flush()
@@ -482,7 +496,7 @@ async def init_db(session: AsyncSession) -> None:
         },
     ]
 
-    for c_data in courses_seed:
+    for c_data in courses_seed if catalogue_is_empty else []:
         res = await session.execute(select(Course).where(Course.course_number == c_data["course_number"]))
         course = res.scalars().first()
         inst = instructor_map.get(c_data["instructor_name"])
@@ -509,22 +523,24 @@ async def init_db(session: AsyncSession) -> None:
                     sessions_count=t_item.get("sessions_count", 1),
                 )
                 session.add(topic)
-        else:
-            # Update existing course with clean UTF-8 data
-            for k, v in c_data.items():
-                setattr(course, k, v)
-            if inst:
-                course.instructor_id = inst.id
-            if term:
-                course.term_id = term.id
-            logger.info(f"Course '{course.title_fa}' updated with clean UTF-8 data.")
+        # An existing course is left exactly as the admin last saved it. Seeding
+        # only fills in what is missing; overwriting here would silently undo
+        # every edit made in the admin panel on the next restart.
 
     # 5. Check and Seed Initial Superadmin / Admin User
-    admin_email = os.getenv("FIRST_SUPERUSER_EMAIL", "admin@aut.ac.ir")
-    admin_password = os.getenv("FIRST_SUPERUSER_PASSWORD", "Admin@AUT1404!")
+    admin_email = settings.FIRST_SUPERUSER_EMAIL
+    admin_password = settings.FIRST_SUPERUSER_PASSWORD
+    if not admin_password:
+        if settings.ENVIRONMENT.strip().lower() in DEV_ENVIRONMENTS:
+            admin_password = "Admin@AUT1404!"
+        else:
+            logger.error(
+                "FIRST_SUPERUSER_PASSWORD is not set; skipping admin creation "
+                "rather than seeding a publicly known password."
+            )
     res = await session.execute(select(User).where(User.email == admin_email))
     admin_user = res.scalars().first()
-    if not admin_user:
+    if not admin_user and admin_password:
         admin_user = User(
             national_id="0000000000",
             phone_number="09120000000",

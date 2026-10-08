@@ -3,7 +3,15 @@ from datetime import datetime
 import uuid
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from app.core.text import normalize_digits
 from app.models.user import UserRole
+
+# Accounts that predate checksum validation (the seeded admin and documented demo IDs).
+DEMO_NATIONAL_IDS = {"0123456789", "1234567890", "0019988776", "0012345678", "0000000000"}
+
+
+def is_acceptable_national_id(code: str) -> bool:
+    return is_valid_national_id(code) or code in DEMO_NATIONAL_IDS
 
 
 def is_valid_national_id(code: str) -> bool:
@@ -34,10 +42,18 @@ class UserCreate(UserBase):
     @field_validator("national_id")
     @classmethod
     def validate_national_id(cls, v: str) -> str:
-        v = v.strip()
+        v = normalize_digits(v.strip())
         # Allow official checksum or standard system demo accounts
-        if not is_valid_national_id(v) and v not in ["0123456789", "1234567890", "0019988776", "0012345678", "0000000000"]:
+        if not is_acceptable_national_id(v):
             raise ValueError("کد ملی وارد شده با الگوریتم استاندارد صحت‌سنجی ملی همخوانی ندارد.")
+        return v
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone_number(cls, v: str) -> str:
+        v = normalize_digits(v.strip())
+        if not re.match(r"^09\d{9}$", v):
+            raise ValueError("شماره همراه باید با 09 شروع شده و ۱۱ رقم باشد.")
         return v
 
 

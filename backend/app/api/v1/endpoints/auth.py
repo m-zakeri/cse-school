@@ -1,11 +1,13 @@
 from typing import Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core import rate_limit
 from app.core.security import create_access_token, verify_password, get_password_hash
+from app.core.text import normalize_digits
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserLogin, UserRead, Token
 
@@ -15,15 +17,18 @@ router = APIRouter()
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register_user(
     user_in: UserCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """ثبت‌نام کاربر جدید با بررسی یکتایی کد ملی، شماره تماس و ایمیل"""
+    await rate_limit.enforce(f"register:{rate_limit.client_ip(request)}", limit=20, window_seconds=3600)
+
     # Check if user already exists with national_id, phone or email
     stmt = select(User).where(
         or_(
             User.national_id == user_in.national_id,
             User.phone_number == user_in.phone_number,
-            User.email == user_in.email,
+            func.lower(User.email) == user_in.email.lower(),
         )
     )
     res = await db.execute(stmt)
@@ -40,7 +45,7 @@ async def register_user(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="کاربری با این شماره تلفن همراه قبلاً در سامانه ثبت‌نام کرده است.",
             )
-        if existing_user.email == user_in.email:
+        if existing_user.email.lower() == user_in.email.lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="کاربری با این آدرس ایمیل قبلاً در سامانه ثبت‌نام کرده است.",
@@ -75,14 +80,26 @@ async def register_user(
 @router.post("/login", response_model=Token)
 async def login(
     login_data: UserLogin,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """ورود کاربر با ایمیل، کد ملی یا شماره همراه"""
+    identifier = login_data.identifier.strip()
+    if "@" not in identifier:
+        # National ID / phone typed with Persian digits must still match.
+        identifier = normalize_digits(identifier)
+
+    # Throttle per account and per client so a password cannot be brute-forced.
+    account_key = f"login:acct:{identifier.lower()}"
+    ip_key = f"login:ip:{rate_limit.client_ip(request)}"
+    await rate_limit.enforce(account_key, limit=8, window_seconds=600)
+    await rate_limit.enforce(ip_key, limit=40, window_seconds=600)
+
     stmt = select(User).where(
         or_(
-            User.email == login_data.identifier,
-            User.national_id == login_data.identifier,
-            User.phone_number == login_data.identifier,
+            func.lower(User.email) == identifier.lower(),
+            User.national_id == identifier,
+            User.phone_number == identifier,
         )
     )
     res = await db.execute(stmt)
@@ -106,6 +123,7 @@ async def login(
             detail="حساب کاربری شما غیرفعال شده است.",
         )
 
+    await rate_limit.reset(account_key)
     access_token = create_access_token(subject=str(user.id))
     return Token(access_token=access_token, token_type="bearer", user=UserRead.model_validate(user))
 

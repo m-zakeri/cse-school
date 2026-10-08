@@ -37,7 +37,7 @@ class Enrollment(Base):
         String(50), unique=True, index=True, nullable=False, doc="کد رهگیری ثبت‌نام"
     )
     final_grade: Mapped[Decimal] = mapped_column(
-        Numeric(4, 2), nullable=True, doc="نمره نهایی از ۱۰۰ یا ۲۰"
+        Numeric(5, 2), nullable=True, doc="نمره نهایی از ۱۰۰ یا ۲۰"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
@@ -51,4 +51,6 @@ class Enrollment(Base):
     course = relationship("Course", back_populates="enrollments")
     term = relationship("Term", back_populates="enrollments")
     payments = relationship("Payment", back_populates="enrollment")
-    certificate = relationship("Certificate", back_populates="enrollment", uselist=False)
+    certificate = relationship(
+        "Certificate", back_populates="enrollment", uselist=False, cascade="all, delete-orphan"
+    )

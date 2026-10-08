@@ -10,10 +10,12 @@ from app.schemas.user import UserRead
 
 class EnrollmentCreate(BaseModel):
     course_id: Union[int, str, uuid.UUID]
-    national_id: str
-    phone_number: str
-    email: str
-    full_name: str
+    # Only needed to open a new account; a signed-in student can send just the
+    # course ids, because the enrollment is attached to their own account.
+    national_id: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
     password: Optional[str] = None
     education_level: Optional[str] = None
     university: Optional[str] = None
@@ -22,10 +24,12 @@ class EnrollmentCreate(BaseModel):
 
 class BatchEnrollmentCreate(BaseModel):
     course_ids: List[Union[int, str, uuid.UUID]]
-    national_id: str
-    phone_number: str
-    email: str
-    full_name: str
+    # Only needed to open a new account; a signed-in student can send just the
+    # course ids, because the enrollment is attached to their own account.
+    national_id: Optional[str] = None
+    phone_number: Optional[str] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
     password: Optional[str] = None
     education_level: Optional[str] = None
     university: Optional[str] = None

@@ -1,13 +1,15 @@
+import re
 import uuid
 import secrets
 from typing import List, Any, Optional
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
-from sqlalchemy import select, desc, or_
+from pydantic import BaseModel, Field
+from sqlalchemy import select, desc, or_, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import get_password_hash
+from app.core.text import normalize_digits
 from app.core.database import get_db
 from app.core.deps import get_current_admin, get_current_user, get_optional_user
 from app.models.user import User, UserRole
@@ -16,13 +18,23 @@ from app.models.instructor import Instructor
 from app.models.term import Term
 from app.models.enrollment import Enrollment, EnrollmentStatus
 from app.schemas.enrollment import EnrollmentCreate, BatchEnrollmentCreate, EnrollmentRead
+from app.schemas.user import is_acceptable_national_id
 
 router = APIRouter()
 
 
+# Statuses that occupy a seat in the class.
+_SEAT_HOLDING_STATES = (
+    EnrollmentStatus.PENDING_PAYMENT,
+    EnrollmentStatus.REGISTERED,
+    EnrollmentStatus.COMPLETED,
+)
+
+
 class EnrollmentStatusUpdate(BaseModel):
     status: EnrollmentStatus
-    final_grade: Optional[Decimal] = None
+    # Grades are entered out of 20 or 100 depending on the course.
+    final_grade: Optional[Decimal] = Field(None, ge=0, le=100)
 
 
 def generate_tracking_code() -> str:
@@ -51,6 +63,118 @@ def resolve_course_query(c_id):
     return select(Course).where(Course.id == c_id)
 
 
+async def _resolve_enrolling_user(
+    payload: Any,
+    current_user: Optional[User],
+    db: AsyncSession,
+) -> User:
+    """The account a request enrolls: the signed-in caller, or a brand-new
+    account created from the submitted details for an anonymous visitor."""
+    national_id = normalize_digits((payload.national_id or "").strip())
+
+    if current_user is not None:
+        # Signed in: the enrollment always belongs to the caller. Profile hints
+        # in the body may fill gaps but never overwrite credentials or contacts.
+        if national_id and national_id != current_user.national_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="کد ملی ارسال‌شده با حساب کاربری واردشده مطابقت ندارد.",
+            )
+        user = current_user
+        if payload.education_level:
+            user.education_level = payload.education_level
+        if payload.university:
+            user.university = payload.university
+        if payload.field_of_study:
+            user.field_of_study = payload.field_of_study
+        return user
+
+    identity_fields = ("national_id", "phone_number", "email", "full_name")
+    if not any(getattr(payload, name, None) for name in identity_fields):
+        # No session and no details to open an account with: the caller's token
+        # was missing or no longer valid.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="برای ثبت‌نام ابتدا وارد حساب کاربری خود شوید.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    missing = [name for name in identity_fields if not getattr(payload, name, None)]
+    if missing or not payload.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="برای ایجاد حساب کاربری، تکمیل مشخصات هویتی و انتخاب کلمه عبور الزامی است.",
+        )
+
+    phone = normalize_digits(payload.phone_number.strip())
+    email = payload.email.strip()
+
+    if not is_acceptable_national_id(national_id):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="کد ملی وارد شده با الگوریتم استاندارد صحت‌سنجی ملی همخوانی ندارد.",
+        )
+    if not re.match(r"^09\d{9}$", phone):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="شماره همراه باید با 09 شروع شده و ۱۱ رقم باشد.",
+        )
+    if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="فرمت آدرس ایمیل نامعتبر است.",
+        )
+    if len(payload.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="کلمه عبور باید حداقل شامل ۶ کاراکتر باشد.",
+        )
+
+    clash = (
+        await db.execute(
+            select(User).where(
+                or_(
+                    User.national_id == national_id,
+                    User.phone_number == phone,
+                    func.lower(User.email) == email.lower(),
+                )
+            )
+        )
+    ).scalars().first()
+    if clash:
+        # Never reveal which detail matched an account the caller doesn't own.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="حسابی با این مشخصات موجود است. لطفاً ابتدا وارد سامانه شوید.",
+        )
+
+    user = User(
+        national_id=national_id,
+        phone_number=phone,
+        email=email,
+        full_name=payload.full_name.strip(),
+        hashed_password=get_password_hash(payload.password),
+        education_level=payload.education_level,
+        university=payload.university,
+        field_of_study=payload.field_of_study,
+        role=UserRole.STUDENT,
+        is_verified=True,
+    )
+    db.add(user)
+    await db.flush()
+    return user
+
+
+async def _seats_taken(course: Course, db: AsyncSession) -> int:
+    res = await db.execute(
+        select(func.count(Enrollment.id)).where(
+            Enrollment.course_id == course.id,
+            Enrollment.status.in_(_SEAT_HOLDING_STATES),
+        )
+    )
+    return res.scalar() or 0
+
+
 @router.post("/", response_model=EnrollmentRead, status_code=status.HTTP_201_CREATED)
 async def create_enrollment(
     enroll_in: EnrollmentCreate,
@@ -61,57 +185,20 @@ async def create_enrollment(
     stmt_course = resolve_course_query(enroll_in.course_id)
     res_course = await db.execute(stmt_course)
     course = res_course.scalars().first()
-    if not course:
+    if not course or not course.is_active:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="دوره مورد نظر یافت نشد.",
         )
 
-    stmt_user = select(User).where(User.national_id == enroll_in.national_id)
-    res_user = await db.execute(stmt_user)
-    user = res_user.scalars().first()
+    user = await _resolve_enrolling_user(enroll_in, current_user, db)
 
-    if not user:
-        if not enroll_in.password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="برای ایجاد حساب کاربری، انتخاب کلمه عبور الزامی است.",
-            )
-        user = User(
-            national_id=enroll_in.national_id,
-            phone_number=enroll_in.phone_number,
-            email=enroll_in.email,
-            full_name=enroll_in.full_name,
-            hashed_password=get_password_hash(enroll_in.password),
-            education_level=enroll_in.education_level,
-            university=enroll_in.university,
-            field_of_study=enroll_in.field_of_study,
-            role=UserRole.STUDENT,
-            is_verified=True,
-        )
-        db.add(user)
-        await db.flush()
-    else:
-        # The account already exists: never let an anonymous request overwrite its
-        # credentials or contact details. Only the account owner may enroll into it.
-        if current_user is None or current_user.id != user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="حسابی با این کد ملی موجود است. لطفاً ابتدا وارد سامانه شوید.",
-            )
-        if enroll_in.education_level:
-            user.education_level = enroll_in.education_level
-        if enroll_in.university:
-            user.university = enroll_in.university
-        if enroll_in.field_of_study:
-            user.field_of_study = enroll_in.field_of_study
-
-    stmt_exist = select(Enrollment).where(
-        Enrollment.user_id == user.id,
-        Enrollment.course_id == course.id,
+    stmt_exist = (
+        select(Enrollment)
+        .where(Enrollment.user_id == user.id, Enrollment.course_id == course.id)
+        .options(*enrollment_options())
     )
-    res_exist = await db.execute(stmt_exist)
-    existing_enrollment = res_exist.scalars().first()
+    existing_enrollment = (await db.execute(stmt_exist)).scalars().first()
 
     if existing_enrollment:
         if existing_enrollment.status == EnrollmentStatus.REGISTERED:
@@ -120,6 +207,13 @@ async def create_enrollment(
                 detail="شما قبلاً در این دوره با موفقیت ثبت‌نام کرده‌اید.",
             )
         return existing_enrollment
+
+    if await _seats_taken(course, db) >= course.capacity:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"ظرفیت دوره «{course.title_fa}» تکمیل شده است.",
+        )
 
     enrollment = Enrollment(
         user_id=user.id,
@@ -154,51 +248,15 @@ async def create_batch_enrollments(
             detail="حداقل یک دوره باید برای ثبت‌نام انتخاب شود.",
         )
 
-    stmt_user = select(User).where(User.national_id == batch_in.national_id)
-    res_user = await db.execute(stmt_user)
-    user = res_user.scalars().first()
-
-    if not user:
-        if not batch_in.password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="برای ایجاد حساب کاربری، انتخاب کلمه عبور الزامی است.",
-            )
-        user = User(
-            national_id=batch_in.national_id,
-            phone_number=batch_in.phone_number,
-            email=batch_in.email,
-            full_name=batch_in.full_name,
-            hashed_password=get_password_hash(batch_in.password),
-            education_level=batch_in.education_level,
-            university=batch_in.university,
-            field_of_study=batch_in.field_of_study,
-            role=UserRole.STUDENT,
-            is_verified=True,
-        )
-        db.add(user)
-        await db.flush()
-    else:
-        # Existing account: only its owner may enroll into it, and their
-        # credentials/contact details are never overwritten from this request.
-        if current_user is None or current_user.id != user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="حسابی با این کد ملی موجود است. لطفاً ابتدا وارد سامانه شوید.",
-            )
-        if batch_in.education_level:
-            user.education_level = batch_in.education_level
-        if batch_in.university:
-            user.university = batch_in.university
-        if batch_in.field_of_study:
-            user.field_of_study = batch_in.field_of_study
+    user = await _resolve_enrolling_user(batch_in, current_user, db)
 
     enrollment_ids = []
+    full_courses = []
     for c_id in batch_in.course_ids:
         stmt_course = resolve_course_query(c_id)
         res_course = await db.execute(stmt_course)
         course = res_course.scalars().first()
-        if not course:
+        if not course or not course.is_active:
             continue
 
         stmt_exist = select(Enrollment).where(
@@ -210,17 +268,36 @@ async def create_batch_enrollments(
 
         if exist_enr:
             enrollment_ids.append(exist_enr.id)
-        else:
-            enr = Enrollment(
-                user_id=user.id,
-                course_id=course.id,
-                term_id=course.term_id,
-                status=EnrollmentStatus.REGISTERED,
-                tracking_code=generate_tracking_code(),
-            )
-            db.add(enr)
-            await db.flush()
-            enrollment_ids.append(enr.id)
+            continue
+
+        if await _seats_taken(course, db) >= course.capacity:
+            full_courses.append(course.title_fa)
+            continue
+
+        enr = Enrollment(
+            user_id=user.id,
+            course_id=course.id,
+            term_id=course.term_id,
+            status=EnrollmentStatus.REGISTERED,
+            tracking_code=generate_tracking_code(),
+        )
+        db.add(enr)
+        await db.flush()
+        enrollment_ids.append(enr.id)
+
+    # All-or-nothing: a package must not be half-registered.
+    if full_courses:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="ظرفیت دوره‌های زیر تکمیل شده است: " + "، ".join(full_courses),
+        )
+
+    if not enrollment_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="دوره‌های انتخاب‌شده در سامانه یافت نشدند یا ثبت‌نام در آن‌ها بسته است.",
+        )
 
     await db.commit()
 
@@ -358,6 +435,14 @@ async def drop_enrollment_student(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="شما تنها مجاز به انصراف از دوره‌های خود هستید.",
+        )
+
+    # A finished course carries a grade and possibly a certificate; those are
+    # academic records only an admin may remove.
+    if enr.status == EnrollmentStatus.COMPLETED and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="امکان انصراف از دوره‌ای که تکمیل شده است وجود ندارد.",
         )
 
     await db.delete(enr)
