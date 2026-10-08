@@ -115,16 +115,9 @@ export default function Register() {
     setIsLoading(true);
     setErrorMessage("");
 
-    const payload = {
-      course_ids: newCoursesToEnroll,
-      national_id: currentUser.national_id,
-      phone_number: currentUser.phone_number || "09120000000",
-      email: currentUser.email || "student@aut.ac.ir",
-      full_name: currentUser.full_name || "دانشجو",
-      education_level: currentUser.education_level || "bachelor_student",
-      university: currentUser.university || "دانشگاه صنعتی امیرکبیر",
-      field_of_study: "مهندسی کامپیوتر",
-    };
+    // The server attaches the enrollment to the signed-in account, so only the
+    // course ids are needed.
+    const payload = { course_ids: newCoursesToEnroll };
 
     try {
       const enrollments = await apiCreateBatchEnrollment(payload);

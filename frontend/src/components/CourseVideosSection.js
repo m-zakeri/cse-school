@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiGetCourseVideos, apiGetVideoPlayback } from "@/lib/api";
 import { toPersianDigits } from "@/lib/formatters";
 import {
@@ -23,6 +23,8 @@ export default function CourseVideosSection({ courseIdentifier }) {
   const [playback, setPlayback] = useState(null); // { url, content_type }
   const [loadingId, setLoadingId] = useState(null);
   const [error, setError] = useState("");
+  const videoRef = useRef(null);
+  const refreshAttempts = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -39,6 +41,14 @@ export default function CourseVideosSection({ courseIdentifier }) {
     };
   }, [courseIdentifier]);
 
+  // The section renders after the data arrives, so the browser's own anchor
+  // jump (e.g. from the dashboard's "videos" link) has already missed it.
+  useEffect(() => {
+    if (ready && videos.length > 0 && window.location.hash === "#videos") {
+      document.getElementById("videos")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [ready, videos.length]);
+
   const handlePlay = async (video) => {
     if (activeId === video.id) {
       setActiveId(null);
@@ -47,6 +57,7 @@ export default function CourseVideosSection({ courseIdentifier }) {
     }
     setLoadingId(video.id);
     setError("");
+    refreshAttempts.current = 0;
     try {
       const data = await apiGetVideoPlayback(courseIdentifier, video.id);
       setActiveId(video.id);
@@ -58,10 +69,31 @@ export default function CourseVideosSection({ courseIdentifier }) {
     }
   };
 
+  // Playback links are short-lived. When one lapses mid-lecture the browser's
+  // next range request is refused, so fetch a fresh link and resume from the
+  // same second instead of leaving the student with a dead player.
+  const handleVideoError = async () => {
+    if (!activeId || refreshAttempts.current >= 2) {
+      setError("پخش ویدیو با خطا مواجه شد. صفحه را بازخوانی کنید.");
+      return;
+    }
+    refreshAttempts.current += 1;
+    const resumeAt = videoRef.current?.currentTime || 0;
+    try {
+      const data = await apiGetVideoPlayback(courseIdentifier, activeId);
+      setPlayback({ url: data.url, contentType: data.content_type, resumeAt });
+    } catch (err) {
+      setError(err.message || "پخش ویدیو ممکن نشد.");
+    }
+  };
+
   if (!ready || videos.length === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 shadow-xs print:hidden">
+    <div
+      id="videos"
+      className="scroll-mt-24 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 shadow-xs print:hidden"
+    >
       <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
         <VideoCameraIcon className="w-5 h-5 text-blue-600" />
         <span>ویدیوهای دوره</span>
@@ -132,6 +164,11 @@ export default function CourseVideosSection({ courseIdentifier }) {
                 <div className="px-3.5 pb-3.5">
                   <video
                     key={playback.url}
+                    ref={videoRef}
+                    onError={handleVideoError}
+                    onLoadedMetadata={(e) => {
+                      if (playback.resumeAt) e.currentTarget.currentTime = playback.resumeAt;
+                    }}
                     controls
                     autoPlay
                     controlsList="nodownload"

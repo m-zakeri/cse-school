@@ -119,44 +119,29 @@ export default function Micromaster() {
       return;
     }
 
-    const payload = {
-      course_ids: neededCourseIds,
-      national_id: currentUser.national_id,
-      phone_number: currentUser.phone_number || "09120000000",
-      email: currentUser.email || "student@aut.ac.ir",
-      full_name: currentUser.full_name || "دانشجو",
-      education_level: currentUser.education_level || "bachelor_student",
-      university: currentUser.university || "دانشگاه صنعتی امیرکبیر",
-      field_of_study: "مهندسی کامپیوتر",
-    };
+    // The server attaches the enrollment to the signed-in account.
+    const payload = { course_ids: neededCourseIds };
 
     try {
       const enrollments = await apiCreateBatchEnrollment(payload);
-      const tracking =
-        enrollments[0]?.tracking_code ||
-        `AUT-MM-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      // The tracking code is the student's proof of registration; never invent one.
+      if (!Array.isArray(enrollments) || enrollments.length === 0) {
+        throw new Error("ثبت‌نام توسط سامانه تأیید نشد. لطفاً مجدداً تلاش نمایید.");
+      }
 
       setEnrolledCourseIds((prev) => [...prev, ...neededCourseIds]);
 
       setSuccessReceipt({
         packageTitle: pkg.title,
         coursesCount: neededCourseIds.length,
-        trackingCode: tracking,
+        trackingCode: enrollments[0].tracking_code,
         studentName: currentUser.full_name,
       });
-    } catch {
-      // Local fallback
-      const tracking = `AUT-MM-${Math.random()
-        .toString(36)
-        .substring(2, 8)
-        .toUpperCase()}`;
-      setEnrolledCourseIds((prev) => [...prev, ...neededCourseIds]);
-      setSuccessReceipt({
-        packageTitle: pkg.title,
-        coursesCount: neededCourseIds.length,
-        trackingCode: tracking,
-        studentName: currentUser.full_name,
-      });
+    } catch (err) {
+      setErrorMessage(
+        err.message || "ثبت‌نام بسته انجام نشد. لطفاً مجدداً تلاش نمایید."
+      );
     } finally {
       setEnrollingPackageId(null);
     }
