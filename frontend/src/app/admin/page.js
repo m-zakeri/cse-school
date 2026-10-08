@@ -8,7 +8,8 @@ import {
   apiGetAllEnrollmentsAdmin,
   apiUpdateEnrollmentStatus,
   apiDeleteEnrollmentAdmin,
-  apiGetCourses,
+  apiGetCoursesAdmin,
+  apiGetCourseDetail,
   apiCreateCourse,
   apiUpdateCourse,
   apiDeleteCourse,
@@ -114,11 +115,17 @@ function parseGrading(text) {
   });
 }
 
-/** Software tools are stored as objects; accept "name|note" lines. */
+/**
+ * Software tools are stored as { category, tools } objects, the shape the course
+ * page renders. Accepts "category|tools" lines; a bare line becomes a tool with
+ * no category.
+ */
 function parseTools(text) {
   return linesOf(text).map((line) => {
-    const [name, note] = line.split("|").map((p) => p?.trim());
-    return { name: name || line, note: note || "" };
+    const [first, second] = line.split("|").map((p) => p?.trim());
+    return second !== undefined
+      ? { category: first || "", tools: second }
+      : { category: "", tools: first || line };
   });
 }
 
@@ -215,7 +222,7 @@ export default function AdminDashboard() {
     // rather than silently replaced with sample data.
     const [enr, courseList, instructorList, certList] = await Promise.allSettled([
       apiGetAllEnrollmentsAdmin(),
-      apiGetCourses(),
+      apiGetCoursesAdmin(),
       apiGetInstructors(),
       apiGetCertificatesAdmin(),
     ]);
@@ -542,10 +549,22 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleEditCourse = (course) => {
-    setEditingCourseId(course.id);
+  const handleEditCourse = async (listItem) => {
     setCourseSuccessMsg("");
     setCourseErrorMsg("");
+
+    // The catalogue list only carries summary fields. Editing from it would show
+    // an empty description, syllabus and objectives, and saving would then wipe
+    // them, so always start from the full record.
+    let course;
+    try {
+      course = await apiGetCourseDetail(listItem.id);
+    } catch (err) {
+      notifyError(err, "بارگذاری اطلاعات کامل دوره ممکن نشد.");
+      return;
+    }
+
+    setEditingCourseId(course.id);
     setNewCourse({
       title_fa: course.title_fa || "",
       title_en: course.title_en || "",
@@ -573,7 +592,7 @@ export default function AdminDashboard() {
       objectivesText: (course.objectives || []).join("\n"),
       targetAudienceText: (course.target_audience || []).join("\n"),
       softwareToolsText: (course.software_tools || [])
-        .map((t) => (t.note ? `${t.name}|${t.note}` : t.name || ""))
+        .map((t) => (t.category ? `${t.category}|${t.tools || ""}` : t.tools || ""))
         .join("\n"),
       gradingText: (course.grading_info || [])
         .map((g) => `${g.label || ""}|${g.percent || ""}`)
@@ -581,6 +600,23 @@ export default function AdminDashboard() {
       referencesText: (course.references || []).join("\n"),
     });
     setActiveTab("NEW_COURSE");
+  };
+
+  const handleToggleCourseActive = async (course) => {
+    const next = !course.is_active;
+    try {
+      const updated = await apiUpdateCourse(course.id, { is_active: next });
+      setAllCourses((prev) =>
+        prev.map((c) => (c.id === course.id ? { ...c, is_active: updated.is_active } : c))
+      );
+      notifySuccess(
+        next
+          ? `دوره «${course.title_fa}» دوباره برای دانشجویان نمایش داده می‌شود.`
+          : `دوره «${course.title_fa}» غیرفعال شد و دیگر در فهرست عمومی دیده نمی‌شود.`
+      );
+    } catch (err) {
+      notifyError(err, "تغییر وضعیت دوره انجام نشد.");
+    }
   };
 
   const handleDeleteCourse = (courseId) => {
@@ -1377,6 +1413,11 @@ export default function AdminDashboard() {
                       #{toPersianDigits(c.course_number || c.id)}
                     </span>
                   </div>
+                  {c.is_active === false && (
+                    <span className="inline-block bg-amber-100 text-amber-800 text-[11px] font-bold px-2 py-0.5 rounded-md">
+                      غیرفعال — برای دانشجویان نمایش داده نمی‌شود
+                    </span>
+                  )}
                   <h3 className="text-sm font-bold text-slate-900">
                     {c.title_fa || c.title}
                   </h3>
@@ -1400,6 +1441,12 @@ export default function AdminDashboard() {
                     className="bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
                   >
                     ویرایش
+                  </button>
+                  <button
+                    onClick={() => handleToggleCourseActive(c)}
+                    className="bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                  >
+                    {c.is_active === false ? "فعال‌سازی" : "غیرفعال"}
                   </button>
                   <button
                     onClick={() => handleDeleteCourse(c.id)}
@@ -1753,13 +1800,13 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
-                  ابزارها و نرم‌افزارها («نام|توضیح» در هر خط)
+                  ابزارها و نرم‌افزارها («دسته|ابزارها» در هر خط)
                 </label>
                 <textarea
                   rows={3}
                   value={newCourse.softwareToolsText}
                   onChange={(e) => setNewCourse({ ...newCourse, softwareToolsText: e.target.value })}
-                  placeholder="Python|زبان اصلی دوره&#10;Docker"
+                  placeholder="زبان برنامه‌نویسی|Python 3.x&#10;کانتینرسازی|Docker, Kubernetes"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>

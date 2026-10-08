@@ -158,9 +158,14 @@ export default function CourseDetailClient({ params }) {
               apiData.references && apiData.references.length > 0
                 ? apiData.references
                 : mergedCourse.references,
+            // The API returns the syllabus as `topics` (ordered by order_index).
             topics:
-              apiData.syllabus_topics && apiData.syllabus_topics.length > 0
-                ? apiData.syllabus_topics
+              apiData.topics && apiData.topics.length > 0
+                ? apiData.topics.map((t) => ({
+                    title: t.title,
+                    description: t.description,
+                    session: t.order_index,
+                  }))
                 : mergedCourse.topics,
           };
         }
@@ -175,6 +180,10 @@ export default function CourseDetailClient({ params }) {
         try {
           const userEnrs = await apiGetUserEnrollments(user.national_id);
           const hasEnrolled = userEnrs.some((e) => {
+            // A cancelled record is not an active enrollment.
+            if (e.status && !["REGISTERED", "COMPLETED"].includes(e.status)) {
+              return false;
+            }
             const courseId = e.course_id || e.course?.id;
             const courseNum = e.course?.course_number;
             return (
@@ -415,8 +424,8 @@ export default function CourseDetailClient({ params }) {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">شیوه برگزاری:</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  کلاس آنلاین + آزمون حضوری
+                <span className="font-semibold text-slate-800 dark:text-slate-200 text-end">
+                  {course.deliveryMethod}
                 </span>
               </div>
               <div className="flex justify-between items-center">

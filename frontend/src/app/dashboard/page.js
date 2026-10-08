@@ -26,6 +26,25 @@ import { toPersianDigits, formatTrackingCode } from "@/lib/formatters";
 import CustomModal from "@/components/UI/CustomModal";
 import { useToast } from "@/components/UI/ToastProvider";
 
+const ENROLLMENT_STATUS = {
+  REGISTERED: {
+    label: "ثبت‌نام نهایی",
+    style: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  },
+  COMPLETED: {
+    label: "تکمیل‌شده",
+    style: "bg-blue-50 text-blue-700 border-blue-100",
+  },
+  PENDING_PAYMENT: {
+    label: "در انتظار پرداخت",
+    style: "bg-amber-50 text-amber-700 border-amber-100",
+  },
+  CANCELLED: {
+    label: "لغوشده",
+    style: "bg-slate-100 text-slate-600 border-slate-200",
+  },
+};
+
 function getInstructorName(course) {
   if (!course) return "عضو هیئت علمی";
   if (course.instructor_name && typeof course.instructor_name === "string") {
@@ -461,8 +480,15 @@ export default function StudentDashboard() {
                   >
                     <div className="space-y-3 mb-6">
                       <div className="flex justify-between items-center">
-                        <span className="bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-100">
-                          ثبت‌نام نهایی
+                        <span
+                          className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                            (ENROLLMENT_STATUS[enr.status] || ENROLLMENT_STATUS.REGISTERED).style
+                          }`}
+                        >
+                          {(ENROLLMENT_STATUS[enr.status] || ENROLLMENT_STATUS.REGISTERED).label}
+                          {enr.status === "COMPLETED" && enr.final_grade != null
+                            ? ` • نمره ${toPersianDigits(Number(enr.final_grade))}`
+                            : ""}
                         </span>
                         <span className="text-[11px] text-slate-400 font-mono dir-ltr">
                           {formatTrackingCode(enr.tracking_code)}
@@ -500,16 +526,24 @@ export default function StudentDashboard() {
                         >
                           سرفصل‌ها
                         </Link>
+                        <Link
+                          href={`/courses/${courseData?.course_number || courseData?.id || 1}#videos`}
+                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium py-2.5 px-3 rounded-xl transition-all"
+                        >
+                          ویدیوها
+                        </Link>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={isDropping}
-                        onClick={() => handleDropCourse(enr)}
-                        className="w-full text-center text-xs text-red-500 hover:text-red-700 hover:bg-red-50 py-1.5 rounded-lg transition-colors font-medium"
-                      >
-                        {isDropping ? "در حال ثبت انصراف..." : "انصراف از این دوره"}
-                      </button>
+                      {enr.status !== "COMPLETED" && (
+                        <button
+                          type="button"
+                          disabled={isDropping}
+                          onClick={() => handleDropCourse(enr)}
+                          className="w-full text-center text-xs text-red-500 hover:text-red-700 hover:bg-red-50 py-1.5 rounded-lg transition-colors font-medium"
+                        >
+                          {isDropping ? "در حال ثبت انصراف..." : "انصراف از این دوره"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

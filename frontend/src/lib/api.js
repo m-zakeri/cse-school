@@ -1,13 +1,14 @@
+import { clearAuthSession } from "./auth";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-
-const USERS_STORAGE_KEY = "aut_ce_registered_users_v2";
 
 if (typeof window !== "undefined") {
   try {
     localStorage.removeItem("aut_ce_dynamic_courses");
     localStorage.removeItem("aut_ce_enrollments");
     localStorage.removeItem("aut_ce_registered_users");
+    localStorage.removeItem("aut_ce_registered_users_v2");
     // Enrollments and courses are served straight from the backend now. Drop the
     // old caches so a stale entry can never be shown as if it were real data.
     localStorage.removeItem("aut_ce_enrollments_v2");
@@ -25,6 +26,21 @@ function getAuthToken() {
   }
 }
 
+function handleExpiredSession() {
+  if (typeof window === "undefined") return;
+  clearAuthSession();
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const path = window.location.pathname;
+  if (path.startsWith(`${base}/login`)) return;
+  if (path.startsWith(`${base}/admin`)) {
+    // The admin page shows its own sign-in form once the session is gone.
+    window.location.reload();
+    return;
+  }
+  const back = encodeURIComponent(path.slice(base.length) || "/");
+  window.location.assign(`${base}/login/?redirect=${back}`);
+}
+
 export async function fetchFromAPI(endpoint, options = {}) {
   try {
     const token = getAuthToken();
@@ -39,7 +55,19 @@ export async function fetchFromAPI(endpoint, options = {}) {
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.detail || `Request failed with status ${res.status}`);
+
+      // A rejected token (expired, or the account was disabled) leaves the UI
+      // showing a signed-in state the server no longer honours. Sign out and send
+      // the user to log in again instead of surfacing a cryptic failure.
+      if (res.status === 401 && token && !endpoint.startsWith("/auth/login")) {
+        handleExpiredSession();
+      }
+
+      throw new Error(
+        typeof errorData.detail === "string"
+          ? errorData.detail
+          : `Request failed with status ${res.status}`
+      );
     }
 
     // 204 (and other empty bodies) have nothing to parse.
@@ -62,27 +90,7 @@ export async function fetchFromAPI(endpoint, options = {}) {
 }
 
 // ----------------------------------------------------
-// Local Storage Dynamic Registered Users Fallback
-// ----------------------------------------------------
-export function getLocalUsers() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(USERS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveLocalUser(user) {
-  if (typeof window === "undefined") return;
-  const current = getLocalUsers();
-  const updated = [user, ...current.filter((u) => u.national_id !== user.national_id)];
-  localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
-}
-
-// ----------------------------------------------------
-// Auth API with Fallback
+// Auth API
 // ----------------------------------------------------
 export async function apiLogin(identifier, password) {
   // Authentication is always delegated to the backend. There is deliberately no
@@ -108,6 +116,12 @@ export async function apiRegister(userData) {
 // ----------------------------------------------------
 export async function apiGetCourses() {
   return await fetchFromAPI("/courses/");
+}
+
+// Admin view of the catalogue: deactivated courses are included so they can be
+// found again and re-activated.
+export async function apiGetCoursesAdmin() {
+  return await fetchFromAPI("/courses/?include_inactive=true");
 }
 
 export async function apiGetCourseDetail(identifier) {
