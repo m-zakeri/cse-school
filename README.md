@@ -48,6 +48,21 @@ ce-school/
 
 Docker provides a quick setup to run all services (frontend, backend, PostgreSQL, Redis, and MinIO) in isolated containers.
 
+### First run
+
+```bash
+cp .env.example .env     # then fill in the empty values (see the comments inside)
+docker compose up -d --build
+```
+
+Open http://localhost:3000. The admin account is created on first start from
+`FIRST_SUPERUSER_EMAIL` / `FIRST_SUPERUSER_PASSWORD` in `.env`; sign in with it at
+`/login` and manage courses, students, certificates and lecture videos from `/admin`.
+Students register themselves from `/login?tab=signup`.
+
+Seed data (the term, the four instructors and the seven courses) is only written into an
+empty database. After that the admin panel owns the catalogue and restarts never overwrite it.
+
 ### Development Mode
 
 ```bash

@@ -1,4 +1,5 @@
 import secrets
+import uuid
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, desc
@@ -21,7 +22,8 @@ router = APIRouter()
 
 def generate_serial_number() -> str:
     """شماره سریال یکتای گواهینامه رسمی دانشگاه"""
-    return f"AUT-CE-1404-{secrets.token_hex(4).upper()}"
+    # 48 bits: the verify endpoint is public, so the serial must not be guessable.
+    return f"AUT-CE-1404-{secrets.token_hex(6).upper()}"
 
 
 def to_admin_read(cert: Certificate) -> CertificateAdminRead:
@@ -115,7 +117,7 @@ async def issue_certificate(
 
 @router.delete("/admin/{certificate_id}", status_code=status.HTTP_200_OK)
 async def revoke_certificate(
-    certificate_id: str,
+    certificate_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(get_current_admin),
 ) -> Any:

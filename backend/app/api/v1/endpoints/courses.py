@@ -1,14 +1,19 @@
 import uuid
 import re
 from typing import List, Any
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core import storage
 from app.core.database import get_db
-from app.core.deps import get_current_admin
-from app.models.user import User
+from app.core.deps import get_current_admin, get_optional_user
+from app.models.user import User, UserRole
 from app.models.course import Course, SyllabusTopic
+from app.models.course_video import CourseVideo
+from app.models.enrollment import Enrollment
 from app.models.instructor import Instructor
 from app.models.term import Term
 from app.schemas.course import (
@@ -23,15 +28,19 @@ router = APIRouter()
 
 @router.get("/", response_model=List[CourseListRead])
 async def get_courses(
+    include_inactive: bool = False,
     db: AsyncSession = Depends(get_db),
+    user: Optional[User] = Depends(get_optional_user),
 ) -> Any:
-    """دریافت لیست تمامی دوره‌های آموزشی فعال به همراه اطلاعات استاد"""
+    """دریافت لیست تمامی دوره‌های آموزشی فعال به همراه اطلاعات استاد.
+    مدیر می‌تواند با include_inactive=true دوره‌های غیرفعال را هم ببیند."""
     stmt = (
         select(Course)
-        .where(Course.is_active == True)
         .options(selectinload(Course.instructor))
         .order_by(Course.course_number)
     )
+    if not (include_inactive and user is not None and user.role == UserRole.ADMIN):
+        stmt = stmt.where(Course.is_active == True)
     result = await db.execute(stmt)
     courses = result.scalars().all()
     return courses
@@ -269,7 +278,7 @@ async def delete_course(
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(get_current_admin),
 ) -> None:
-    """حذف یا غیرفعال‌سازی دوره توسط ادمین"""
+    """حذف دوره توسط ادمین. دوره‌ای که دانشجو دارد حذف نمی‌شود و باید غیرفعال شود."""
     stmt = select(Course).where(Course.id == course_id)
     res = await db.execute(stmt)
     course = res.scalars().first()
@@ -279,5 +288,32 @@ async def delete_course(
             detail="دوره مورد نظر یافت نشد.",
         )
 
+    enrolled = (
+        await db.execute(
+            select(func.count(Enrollment.id)).where(Enrollment.course_id == course.id)
+        )
+    ).scalar() or 0
+    if enrolled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"این دوره {enrolled} ثبت‌نام دارد و حذف آن سوابق دانشجویان را از بین می‌برد. "
+                "به‌جای حذف، دوره را غیرفعال کنید."
+            ),
+        )
+
+    video_keys = (
+        await db.execute(
+            select(CourseVideo.storage_key).where(CourseVideo.course_id == course.id)
+        )
+    ).scalars().all()
+
     await db.delete(course)
     await db.commit()
+
+    # Best effort: the rows are gone, so a leftover object only wastes space.
+    for key in video_keys:
+        try:
+            await run_in_threadpool(storage.delete_object, key)
+        except Exception:
+            pass
