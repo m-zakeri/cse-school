@@ -69,3 +69,8 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# Lecture recordings live in object storage, never in git
+*.mp4
+*.mkv
+*.mov
