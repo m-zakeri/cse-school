@@ -47,6 +47,22 @@ Then: site at `http://<server>:3000`, API docs at `http://<server>:8000/docs`.
 | `ce-school.service` | at boot, re-creates any missing container (`compose up -d --no-build`, no internet needed) |
 | `ce-school-update.timer` | every 5 min: deploy the newest commit on `main` **if its CI run succeeded** |
 | `ce-school-backup.timer` | nightly 03:00 backup of the database and uploaded videos (runs at next boot if the server was off) |
+| `ce-school-healthcheck.timer` | every 2 min: checks the site and API, restarts the containers after two failed checks, alerts on down/up and on a nearly full disk |
+
+Units added in a later release are installed and enabled by the next deploy; no manual step.
+
+### Alerts and off-machine backups
+
+Optional keys in `/etc/ce-school/.env`. The watchdog and the backup read them on every run, so no redeploy is needed:
+
+```
+ALERT_WEBHOOK_URL=https://chat.example.ir/hooks/xxxx   # Slack/Mattermost/Rocket.Chat-style webhook, receives {"text": "..."}
+ALERT_EMAIL=ops@example.ir                              # needs a working `mail` command on the server
+OFFSITE_DEST=backup@10.0.0.5:/srv/ce-school/            # rsync target (or a mounted folder) for every nightly backup
+```
+
+Without them the watchdog still heals the stack and writes to the journal
+(`journalctl -u ce-school-healthcheck -n 50`).
 
 Data lives in named Docker volumes (`ce_school_postgres_data`, `ce_school_minio_data`,
 `ce_school_redis_data`) and survives restarts, deploys and power cuts. **Never** run
@@ -90,6 +106,15 @@ docker run --rm -v ce_school_minio_data:/data -v /var/backups/ce-school:/backup 
   --entrypoint sh postgres:16-alpine -c 'rm -rf /data/* && tar xzf /backup/media-YYYYmmdd-HHMMSS.tgz -C /data'
 docker compose -p ce_school start minio
 ```
+
+## Accounts
+
+* **Forgot password:** the student asks the secretariat; an admin opens the panel's **Users** tab,
+  searches the student and presses **Temporary password**. The password is shown once; the student
+  must choose a new one right after logging in.
+* **Admin password:** the first admin password lives in `/etc/ce-school/.env`
+  (`FIRST_SUPERUSER_PASSWORD`). It is only used when the admin account is first created, so changing it
+  later must be done from the account's profile page, not by editing `.env`.
 
 ## Security notes
 

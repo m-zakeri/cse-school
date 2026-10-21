@@ -1,0 +1,9 @@
+[Unit]
+Description=CE School: check that the site answers and restart it if not
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ce-school
+ExecStart=/usr/bin/bash /opt/ce-school/deploy/healthcheck.sh
+TimeoutStartSec=300

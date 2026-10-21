@@ -6,6 +6,11 @@
 #   media-YYYYmmdd-HHMMSS.tgz MinIO data (course videos)
 # and deletes files older than KEEP_DAYS (default 7).
 #
+# Optional off-machine copy: set OFFSITE_DEST in /etc/ce-school/.env (or the
+# environment) to an rsync target such as "backup@10.0.0.5:/srv/ce-school/" or a
+# local mount point such as "/mnt/nas/ce-school/". A backup on the same disk does
+# not survive a dead disk. A failed copy is reported but does not fail the backup.
+#
 # Restore: see deploy/README.md.
 set -Eeuo pipefail
 
@@ -28,6 +33,14 @@ docker run --rm \
   --entrypoint tar postgres:16-alpine \
   czf "/backup/media-$STAMP.tgz.partial" -C /data .
 mv "$BACKUP_DIR/media-$STAMP.tgz.partial" "$BACKUP_DIR/media-$STAMP.tgz"
+
+if [ -z "${OFFSITE_DEST:-}" ] && [ -f /etc/ce-school/.env ]; then
+  OFFSITE_DEST="$(grep -E '^OFFSITE_DEST=' /etc/ce-school/.env | tail -1 | cut -d= -f2- || true)"
+fi
+if [ -n "${OFFSITE_DEST:-}" ]; then
+  echo "[backup] copying to $OFFSITE_DEST"
+  rsync -a "$BACKUP_DIR/db-$STAMP.dump" "$BACKUP_DIR/media-$STAMP.tgz" "$OFFSITE_DEST"     || echo "[backup] WARNING: off-site copy to $OFFSITE_DEST failed"
+fi
 
 find "$BACKUP_DIR" -maxdepth 1 -type f \( -name 'db-*.dump' -o -name 'media-*.tgz' \) -mtime +"$KEEP_DAYS" -delete
 echo "[backup] done: $BACKUP_DIR"

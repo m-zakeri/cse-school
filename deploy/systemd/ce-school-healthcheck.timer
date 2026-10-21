@@ -1,0 +1,10 @@
+[Unit]
+Description=CE School watchdog (every 2 minutes)
+
+[Timer]
+# Start counting 5 minutes after boot so the stack has time to come up first.
+OnBootSec=5min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

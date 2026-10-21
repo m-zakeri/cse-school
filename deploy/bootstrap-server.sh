@@ -88,12 +88,12 @@ fi
 log "systemd units"
 install -m 644 "$APP_DIR"/deploy/systemd/*.service "$APP_DIR"/deploy/systemd/*.timer /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable ce-school.service ce-school-update.timer ce-school-backup.timer
+systemctl enable ce-school.service ce-school-update.timer ce-school-backup.timer ce-school-healthcheck.timer
 
 log "First deploy"
 "$APP_DIR/deploy/deploy.sh"
 
-systemctl start ce-school-update.timer ce-school-backup.timer
+systemctl start ce-school-update.timer ce-school-backup.timer ce-school-healthcheck.timer
 
 log "Done"
 cat <<EOF
@@ -101,7 +101,7 @@ Site:        http://$SERVER_HOST:3000
 API docs:    http://$SERVER_HOST:8000/docs
 Ports to allow through the firewall: 3000 (site), 8000 (API), 9000 (video files).
 
-Status:      systemctl status ce-school ce-school-update.timer ce-school-backup.timer
+Status:      systemctl status ce-school ce-school-update.timer ce-school-backup.timer ce-school-healthcheck.timer
 Deploy log:  journalctl -u ce-school-update -n 50
 Manual run:  sudo $APP_DIR/deploy/deploy.sh
 EOF

@@ -98,5 +98,23 @@ curl -fsS -o /dev/null -m 5 http://127.0.0.1:8000/health || deploy_fail "API /he
 
 trap - ERR
 echo "$(git rev-parse HEAD 2>/dev/null || echo unknown)" >"$STATE_DIR/deployed_sha"
+
+# Keep the systemd units in step with the repository: a release can bring a new
+# timer (e.g. the watchdog) and the server picks it up here without a manual step.
+if [ "$(id -u)" = 0 ] && command -v systemctl >/dev/null 2>&1 && [ -d /etc/systemd/system ]; then
+  changed=0
+  for unit in "$APP_DIR"/deploy/systemd/*.service "$APP_DIR"/deploy/systemd/*.timer; do
+    dest="/etc/systemd/system/$(basename "$unit")"
+    cmp -s "$unit" "$dest" || { install -m 644 "$unit" "$dest"; changed=1; }
+  done
+  if [ "$changed" = 1 ]; then
+    systemctl daemon-reload
+    for timer in "$APP_DIR"/deploy/systemd/*.timer; do
+      systemctl enable --now "$(basename "$timer")" >/dev/null 2>&1 || true
+    done
+    log "systemd units updated"
+  fi
+fi
+
 docker image prune -f >/dev/null 2>&1 || true
 log "deploy of $REV finished, all services healthy"
