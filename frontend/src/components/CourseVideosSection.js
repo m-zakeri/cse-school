@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { apiGetCourseVideos, apiGetVideoPlayback } from "@/lib/api";
+import { apiGetCourseVideos, apiGetVideoPlayback, apiSaveVideoProgress } from "@/lib/api";
+import { getCurrentUser } from "@/lib/auth";
 import { toPersianDigits } from "@/lib/formatters";
 import {
   VideoCameraIcon,
   PlayCircleIcon,
   LockClosedIcon,
+  CheckCircleIcon,
 } from "@/components/Icons";
+
+const SAVE_EVERY_MS = 10000;
+// Don't bother resuming from the first seconds or the very end.
+const RESUME_MIN = 5;
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) return null;
@@ -25,6 +31,7 @@ export default function CourseVideosSection({ courseIdentifier }) {
   const [error, setError] = useState("");
   const videoRef = useRef(null);
   const refreshAttempts = useRef(0);
+  const lastSaved = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -49,11 +56,40 @@ export default function CourseVideosSection({ courseIdentifier }) {
     }
   }, [ready, videos.length]);
 
+  // Remember where the student stopped. Guests (free previews) have no account to
+  // save to; a failed save must never interrupt the lecture.
+  const saveProgress = (video, force = false) => {
+    const el = videoRef.current;
+    if (!el || !video || !getCurrentUser()) return;
+    const now = Date.now();
+    if (!force && now - lastSaved.current < SAVE_EVERY_MS) return;
+    lastSaved.current = now;
+    const position = Math.floor(el.currentTime || 0);
+    const duration = Number.isFinite(el.duration) ? Math.floor(el.duration) : null;
+    if (position < 1) return;
+    apiSaveVideoProgress(courseIdentifier, video.id, position, duration)
+      .then((p) =>
+        setVideos((list) =>
+          list.map((v) =>
+            v.id === video.id
+              ? { ...v, progress_seconds: p.position_seconds, completed: p.completed }
+              : v
+          )
+        )
+      )
+      .catch(() => {});
+  };
+
   const handlePlay = async (video) => {
     if (activeId === video.id) {
+      saveProgress(video, true);
       setActiveId(null);
       setPlayback(null);
       return;
+    }
+    if (activeId) {
+      const previous = videos.find((v) => v.id === activeId);
+      saveProgress(previous, true);
     }
     setLoadingId(video.id);
     setError("");
@@ -61,7 +97,10 @@ export default function CourseVideosSection({ courseIdentifier }) {
     try {
       const data = await apiGetVideoPlayback(courseIdentifier, video.id);
       setActiveId(video.id);
-      setPlayback({ url: data.url, contentType: data.content_type });
+      lastSaved.current = Date.now();
+      const resumeAt =
+        video.progress_seconds > RESUME_MIN && !video.completed ? video.progress_seconds : 0;
+      setPlayback({ url: data.url, contentType: data.content_type, resumeAt });
     } catch (err) {
       setError(err.message || "پخش ویدیو ممکن نشد.");
     } finally {
@@ -89,6 +128,10 @@ export default function CourseVideosSection({ courseIdentifier }) {
 
   if (!ready || videos.length === 0) return null;
 
+  const activeIndex = videos.findIndex((v) => v.id === activeId);
+  const nextVideo = activeIndex >= 0 ? videos.slice(activeIndex + 1).find((v) => !v.locked) : null;
+  const doneCount = videos.filter((v) => v.completed).length;
+
   return (
     <div
       id="videos"
@@ -97,6 +140,11 @@ export default function CourseVideosSection({ courseIdentifier }) {
       <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-1 flex items-center gap-2">
         <VideoCameraIcon className="w-5 h-5 text-blue-600" />
         <span>ویدیوهای دوره</span>
+        {doneCount > 0 && (
+          <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full">
+            {toPersianDigits(doneCount)} از {toPersianDigits(videos.length)} جلسه دیده شده
+          </span>
+        )}
       </h2>
       <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">
         فیلم جلسات این دوره. مشاهده کامل ویدیوها پس از ثبت‌نام در دوره امکان‌پذیر
@@ -128,6 +176,17 @@ export default function CourseVideosSection({ courseIdentifier }) {
                   </p>
                   <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
                     {duration && <span>{duration}</span>}
+                    {v.completed && (
+                      <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">
+                        <CheckCircleIcon className="w-3 h-3" />
+                        دیده شده
+                      </span>
+                    )}
+                    {!v.completed && v.progress_seconds > RESUME_MIN && (
+                      <span className="text-blue-600 font-semibold">
+                        ادامه از {formatDuration(v.progress_seconds)}
+                      </span>
+                    )}
                     {v.is_free_preview && (
                       <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                         پیش‌نمایش رایگان
@@ -154,6 +213,8 @@ export default function CourseVideosSection({ courseIdentifier }) {
                         ? "در حال بارگذاری..."
                         : isActive
                         ? "بستن"
+                        : !v.completed && v.progress_seconds > RESUME_MIN
+                        ? "ادامه"
                         : "پخش"}
                     </span>
                   </button>
@@ -166,6 +227,9 @@ export default function CourseVideosSection({ courseIdentifier }) {
                     key={playback.url}
                     ref={videoRef}
                     onError={handleVideoError}
+                    onTimeUpdate={() => saveProgress(v)}
+                    onPause={() => saveProgress(v, true)}
+                    onEnded={() => saveProgress(v, true)}
                     onLoadedMetadata={(e) => {
                       if (playback.resumeAt) e.currentTarget.currentTime = playback.resumeAt;
                     }}
@@ -178,6 +242,15 @@ export default function CourseVideosSection({ courseIdentifier }) {
                     <source src={playback.url} type={playback.contentType} />
                     مرورگر شما از پخش ویدیو پشتیبانی نمی‌کند.
                   </video>
+                  {nextVideo && (
+                    <button
+                      type="button"
+                      onClick={() => handlePlay(nextVideo)}
+                      className="mt-2.5 text-xs font-bold text-blue-600 hover:text-blue-700"
+                    >
+                      جلسه بعدی: {nextVideo.title} ←
+                    </button>
+                  )}
                 </div>
               )}
             </div>

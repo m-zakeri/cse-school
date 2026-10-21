@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MainLayout from "@/components/Layout/MainLayout";
 import { getCurrentUser, clearAuthSession, updateAuthUser } from "@/lib/auth";
-import { apiGetUserEnrollments, apiDropEnrollment, apiUpdateUserProfile } from "@/lib/api";
+import { apiGetUserEnrollments, apiDropEnrollment, apiUpdateUserProfile, apiGetContinueWatching } from "@/lib/api";
 import { courses } from "@/data/sampleData";
 import {
   AcademicCapIcon,
@@ -68,6 +68,7 @@ export default function StudentDashboard() {
   const [userEnrollments, setUserEnrollments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [continueWatching, setContinueWatching] = useState([]);
   const [activeTab, setActiveTab] = useState("courses"); // 'courses' | 'announcements' | 'profile'
   const toast = useToast();
 
@@ -107,6 +108,8 @@ export default function StudentDashboard() {
     }
 
     setUser(currentUser);
+    // A temporary password issued by the secretariat must be replaced first.
+    if (currentUser.must_change_password) setActiveTab("profile");
     setProfileForm({
       full_name: currentUser.full_name || "",
       phone_number: currentUser.phone_number || "",
@@ -139,6 +142,9 @@ export default function StudentDashboard() {
     }
 
     loadData();
+    apiGetContinueWatching(4)
+      .then((list) => setContinueWatching(Array.isArray(list) ? list : []))
+      .catch(() => {});
   }, []);
 
   const handleLogout = () => {
@@ -205,6 +211,7 @@ export default function StudentDashboard() {
 
       const updated = await apiUpdateUserProfile(payload);
       updateAuthUser({
+        ...(profileForm.new_password ? { must_change_password: false } : {}),
         full_name: profileForm.full_name,
         phone_number: profileForm.phone_number,
         email: profileForm.email,
@@ -433,6 +440,46 @@ export default function StudentDashboard() {
           <span>ویرایش مشخصات و رمز</span>
         </button>
       </div>
+
+      {user.must_change_password && (
+        <div role="alert" className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+          <strong className="font-bold">کلمه عبور شما موقت است.</strong> برای امنیت حساب، همین حالا در تب «ویرایش مشخصات و رمز»
+          یک کلمه عبور جدید انتخاب کنید (کلمه عبور فعلی همان رمز موقتی است که دریافت کرده‌اید).
+        </div>
+      )}
+
+      {/* Pick up where the student left off */}
+      {activeTab === "courses" && continueWatching.length > 0 && (
+        <section className="mb-8" aria-label="ادامهٔ تماشا">
+          <h2 className="text-base font-bold text-slate-900 mb-3">ادامهٔ تماشا</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {continueWatching.map((item) => {
+              const pct = item.duration_seconds
+                ? Math.min(100, Math.round((item.position_seconds / item.duration_seconds) * 100))
+                : 0;
+              return (
+                <Link
+                  key={item.video_id}
+                  href={`/courses/${item.course_number}/#videos`}
+                  className="block bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs hover:border-blue-300 hover:shadow transition-all"
+                >
+                  <p className="text-[11px] text-slate-500 truncate">{item.course_title}</p>
+                  <p className="text-sm font-bold text-slate-900 truncate mt-0.5">{item.video_title}</p>
+                  <div className="h-1.5 rounded-full bg-slate-100 mt-3 overflow-hidden" aria-hidden="true">
+                    <div
+                      className={`h-full rounded-full ${item.completed ? "bg-emerald-500" : "bg-blue-600"}`}
+                      style={{ width: `${item.completed ? 100 : pct}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    {item.completed ? "دیده شده" : `${toPersianDigits(pct)}٪ دیده شده — ادامه ←`}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* TAB 1: Enrolled Courses */}
       {activeTab === "courses" && (

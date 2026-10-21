@@ -355,3 +355,39 @@ export async function apiUpdateUserProfile(profileData) {
     body: JSON.stringify(profileData),
   });
 }
+
+// ----------------------------------------------------
+// Video progress ("continue watching")
+// ----------------------------------------------------
+export async function apiSaveVideoProgress(identifier, videoId, positionSeconds, durationSeconds) {
+  return await fetchFromAPI(`/courses/${identifier}/videos/${videoId}/progress`, {
+    method: "PUT",
+    body: JSON.stringify({
+      position_seconds: positionSeconds,
+      duration_seconds: durationSeconds || null,
+    }),
+  });
+}
+
+export async function apiGetContinueWatching(limit = 6) {
+  return await fetchFromAPI(`/courses/videos/progress/me?limit=${limit}`);
+}
+
+// ----------------------------------------------------
+// Users (admin)
+// ----------------------------------------------------
+export async function apiGetUsersAdmin(query = "") {
+  const q = query ? `?q=${encodeURIComponent(query)}` : "";
+  return await fetchFromAPI(`/users/${q}`);
+}
+
+export async function apiResetUserPassword(userId) {
+  return await fetchFromAPI(`/users/${userId}/reset-password`, { method: "POST" });
+}
+
+export async function apiSetUserActive(userId, isActive) {
+  return await fetchFromAPI(`/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_active: isActive }),
+  });
+}

@@ -68,6 +68,12 @@ function LoginContent() {
       saveAuthSession(res.access_token, res.user);
       toast.success(`خوش آمدید ${res.user.full_name || ""}`);
 
+      // A temporary password (issued by the secretariat) has to be replaced first.
+      if (res.user.must_change_password) {
+        router.push("/dashboard");
+        return;
+      }
+
       if (redirectUrl) {
         router.push(redirectUrl);
         return;
@@ -257,11 +263,13 @@ function LoginContent() {
           {activeTab === "LOGIN" && (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label htmlFor="login-identifier" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                   شناسه کاربری (کد ملی / ایمیل / شماره همراه)
                 </label>
                 <input
+                  id="login-identifier"
                   type="text"
+                  autoComplete="username"
                   required
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
@@ -271,11 +279,13 @@ function LoginContent() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                <label htmlFor="login-password" className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                   کلمه عبور
                 </label>
                 <input
+                  id="login-password"
                   type="password"
+                  autoComplete="current-password"
                   required
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
@@ -298,6 +308,20 @@ function LoginContent() {
                   </>
                 )}
               </button>
+
+              <details className="pt-2 text-xs text-slate-600 dark:text-slate-400">
+                <summary className="cursor-pointer font-semibold text-blue-700 dark:text-blue-400 hover:underline">
+                  کلمه عبور خود را فراموش کرده‌ام
+                </summary>
+                <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 leading-relaxed">
+                  بازیابی کلمه عبور از طریق دبیرخانهٔ مدرسه انجام می‌شود: با ذکر نام، کد ملی و شمارهٔ همراهی که با آن
+                  ثبت‌نام کرده‌اید از صفحهٔ{" "}
+                  <Link href="/contact" className="font-semibold text-blue-700 dark:text-blue-400 hover:underline">
+                    تماس با ما
+                  </Link>{" "}
+                  درخواست دهید. یک کلمه عبور موقت برای شما صادر می‌شود و پس از اولین ورود باید آن را تغییر دهید.
+                </div>
+              </details>
             </form>
           )}
 

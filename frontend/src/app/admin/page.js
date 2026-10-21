@@ -50,6 +50,7 @@ import {
 } from "@/lib/formatters";
 import CustomModal from "@/components/UI/CustomModal";
 import CourseVideoManager from "@/components/admin/CourseVideoManager";
+import UsersPanel from "@/components/admin/UsersPanel";
 import JalaliDateInput from "@/components/UI/JalaliDateInput";
 import { announceTermChange, SEASONS } from "@/lib/terms";
 import { formatIsoShamsi, isoToJalali } from "@/lib/jalali";
@@ -1429,6 +1430,18 @@ export default function AdminDashboard() {
         >
           <AwardIcon className="w-4 h-4" />
           <span>گواهینامه‌ها ({toPersianDigits(certificates.length)})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("USERS")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            activeTab === "USERS"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+              : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50"
+          }`}
+        >
+          <UsersIcon className="w-4 h-4" />
+          <span>کاربران</span>
         </button>
 
         <button
@@ -2882,6 +2895,8 @@ export default function AdminDashboard() {
       )}
 
       {/* TAB 6: Certificates */}
+      {activeTab === "USERS" && <UsersPanel currentUserId={adminUser?.id} />}
+
       {activeTab === "CERTIFICATES" && (
         <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm mb-12">
           <h2 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-2">
