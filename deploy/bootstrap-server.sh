@@ -103,7 +103,7 @@ systemctl start ce-school-update.timer ce-school-backup.timer ce-school-healthch
 log "Done"
 cat <<EOF
 Site:        http://$SERVER_HOST
-API docs:    http://$SERVER_HOST/docs
+API docs:    not published; from your PC: ssh -L 8000:127.0.0.1:8000 <user>@$SERVER_HOST  then  http://localhost:8000/docs
 Port to allow through the firewall: 80 only (nginx serves the site, the API and the videos).
 
 Status:      systemctl status ce-school ce-school-update.timer ce-school-backup.timer ce-school-healthcheck.timer

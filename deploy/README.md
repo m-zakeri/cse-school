@@ -40,11 +40,18 @@ single entry point and routes by path, so visitors never see a port number:
 | Address | Goes to |
 |---|---|
 | `http://<server>/` | the website (Next.js production build) |
-| `http://<server>/api/...`, `/docs` | the API (FastAPI) |
+| `http://<server>/api/...` | the API (FastAPI) |
 | `http://<server>/course-videos/...` | the lecture videos (MinIO, signed time-limited links, read-only) |
 
 The app ports (3000, 8000, 9000), the MinIO console (9001), PostgreSQL and Redis are bound to
 `127.0.0.1` (`BIND_ADDR` in `.env`) and are not reachable from outside.
+
+The interactive API documentation (`/docs`, `/redoc`, the OpenAPI schema) is **not published**: nginx
+answers 404. A developer opens it through an SSH tunnel to the API port that only the server itself can reach:
+
+```bash
+ssh -L 8000:127.0.0.1:8000 <user>@<server>     # then browse http://localhost:8000/docs
+```
 
 ### A server that was installed before nginx (one-time switch)
 

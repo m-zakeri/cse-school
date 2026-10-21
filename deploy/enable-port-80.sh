@@ -70,7 +70,7 @@ echo "==> redeploying"
 cat <<EOF
 
 Done. The whole site is now at:  http://$HOST/
-API docs:                         http://$HOST/docs
+API docs are not published; see deploy/README.md (ssh tunnel) to open them.
 
 Only port 80 needs to be open in the firewall. The old addresses with :3000 / :8000 / :9000
 no longer work from outside the server (that is intended).
