@@ -1,134 +1,30 @@
-# CE School Platform - Amirkabir University of Technology
+# CE School
 
-Integrated platform for specialized training, professional micro-masters, course enrollment, and official certification provided by the Department of Computer Engineering at Amirkabir University of Technology (Tehran Polytechnic).
+Course registration and lecture-video platform of the Computer Engineering School, Amirkabir University of Technology. Students sign up, enroll in the courses of the current term, watch lectures and track their progress; admins manage terms, courses, students and videos from `/admin`.
 
----
+Production: **http://172.23.131.11/**
 
-## Repository Architecture
+Next.js 16 / React 19 (RTL, Persian) · FastAPI + async SQLAlchemy · PostgreSQL 16 · Redis · MinIO for lecture videos (enrollment-gated, short-lived signed URLs) · nginx · Docker Compose.
 
-This repository is organized as a multi-service structure containing independent frontend and backend services:
-
-```
-ce-school/
-├── frontend/                 # Client application (Next.js 16 + Tailwind CSS)
-│   ├── src/                  # Application pages, components, and styles
-│   ├── public/               # Static assets, images, and fonts
-│   ├── Dockerfile            # Standalone production container build
-│   ├── package.json          # Node.js dependencies and scripts
-│   └── README.md             # Detailed frontend documentation
-│
-├── backend/                  # API service (FastAPI + PostgreSQL + Redis)
-│   ├── app/                  # Application routers, database models, schemas, and services
-│   ├── requirements.txt      # Python dependencies
-│   ├── Dockerfile            # Production container build
-│   └── README.md             # Detailed backend architecture, ERD, and API roadmap
-│
-├── docker-compose.yml        # Multi-container production orchestration
-├── docker-compose.dev.yml    # Multi-container development environment with hot-reload
-└── README.md
-```
-
----
-
-## Tech Stack
-
-| Layer | Technology | Purpose |
-|---|---|---|
-| Frontend | Next.js 16 (App Router), React 19 | High-performance user interface with server-side rendering (SSR) and static generation (SSG) |
-| Styling | Tailwind CSS, Yekan Bakh Typography | RTL design system with responsive layouts and Persian number formatting |
-| Backend | Python 3.11, FastAPI | High-performance asynchronous REST API |
-| Database | PostgreSQL 16 (SQLAlchemy 2.0 Async) | ACID-compliant relational storage for courses, enrollments, and transactions |
-| Cache and Queue | Redis 7 | High-speed cache, rate limiting, and task queues |
-| Object Storage | MinIO (S3-compatible) | Stores course lecture videos; streamed to enrolled students via short-lived presigned URLs |
-| DevOps | Docker, Docker Compose | Containerized reproducible environments for development and deployment |
-
----
-
-## Quick Start with Docker
-
-Docker provides a quick setup to run all services (frontend, backend, PostgreSQL, Redis, and MinIO) in isolated containers.
-
-### First run
+## Run it
 
 ```bash
-cp .env.example .env     # then fill in the empty values (see the comments inside)
+cp .env.example .env      # fill in the empty values; the comments explain each one
 docker compose up -d --build
 ```
 
-Open http://localhost:3000. The admin account is created on first start from
-`FIRST_SUPERUSER_EMAIL` / `FIRST_SUPERUSER_PASSWORD` in `.env`; sign in with it at
-`/login` and manage courses, students, certificates and lecture videos from `/admin`.
-Students register themselves from `/login?tab=signup`.
+The site is at http://localhost:8080 (nginx), the frontend alone at :3000. The admin account is created on first start from `FIRST_SUPERUSER_EMAIL` / `FIRST_SUPERUSER_PASSWORD`; students register at `/login?tab=signup`. Seed data is written only into an empty database, after that the admin panel owns the catalogue.
 
-Seed data (the term, the four instructors and the seven courses) is only written into an
-empty database. After that the admin panel owns the catalogue and restarts never overwrite it.
+For development with hot reload: `docker compose -f docker-compose.dev.yml up --build` (API docs at http://localhost:8000/docs).
 
-### Server deployment, CI/CD
+Without Docker: `npm install && npm run dev` in `frontend/`, and in `backend/` `pip install -r requirements.txt` then `uvicorn app.main:app --reload --port 8000`. Details in [frontend/README.md](frontend/README.md) and [backend/README.md](backend/README.md).
 
-GitHub Actions (`.github/workflows/ci.yml`) builds the app and runs an end-to-end API smoke test
-(`backend/tests/e2e_smoke.py`) on every push and pull request. A production server follows `main`
-and deploys each commit whose CI is green, rolls back a deploy that does not come up healthy,
-restarts after a power cut and backs up nightly. Setup and operations: [deploy/README.md](deploy/README.md).
+## Terms
 
-### Terms (فصل‌ها) and repeating courses
+Every course belongs to a term (e.g. `1404-1`). Exactly one term is current and only its courses accept registration; other terms stay browsable and read-only. Admins manage terms and their dates from the panel, and can copy courses into a new term instead of defining them twice (enrollments and videos are not copied).
 
-Every course belongs to a **term** (e.g. «ترم پاییز ۱۴۰۴», code `1404-1`). Admins manage terms and
-their calendar dates (typed in the Persian calendar) from the admin panel's **«ترم‌ها و تقویم»** tab.
+## Production
 
-- Exactly one term is **current**; registration is open only for its courses. Other terms stay
-  browsable (course list, syllabus, academic calendar) but read-only.
-- **Repeating courses:** in the admin **courses** tab, «تکرار دوره‌ها از ترم دیگر» copies courses
-  (with syllabus, instructor, picture) into another term so nothing is defined twice. Enrollments and
-  videos are not copied; a course already present in the target term is skipped.
-- API: `GET /api/v1/terms/`, `GET /api/v1/terms/current`, admin `POST/PUT/DELETE /terms/{id}`,
-  `POST /terms/{id}/activate`, `POST /courses/import`, and `GET /courses/?term=<code|all>`.
+The whole site is served by nginx on port 80; the app ports are bound to localhost. The API documentation is not published (see [deploy/README.md](deploy/README.md) for how to reach it over an SSH tunnel).
 
-### Development Mode
-
-```bash
-docker compose -f docker-compose.dev.yml up --build
-```
-
-- Frontend: http://localhost:3000 (or through nginx at http://localhost:8080)
-- Backend Swagger Documentation: http://localhost:8000/docs
-- PostgreSQL Database: port 5432
-- Redis: port 6379
-- MinIO S3 API: port 9000 &nbsp;·&nbsp; MinIO Console: http://localhost:9001 (user/pass `minioadmin`)
-
-### Production Mode
-
-```bash
-docker compose up -d --build
-```
-
----
-
-## Manual Setup
-
-### Frontend Setup
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-For detailed page structures and configurations, refer to the [Frontend Documentation](frontend/README.md).
-
-### Backend Setup
-
-```bash
-cd backend
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# Linux / macOS
-# source venv/bin/activate
-
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-For database schemas, entity relationship diagrams, and API endpoints, refer to the [Backend Documentation](backend/README.md).
+GitHub Actions (`.github/workflows/ci.yml`) builds the app and runs the end-to-end API smoke test on every push and pull request. The server deploys the latest `main` commit whose CI is green, rolls back a deploy that does not come up healthy, restarts after a power cut and backs up nightly. Installation, updates, backups and alerts: [deploy/README.md](deploy/README.md).
