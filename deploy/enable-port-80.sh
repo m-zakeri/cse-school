@@ -5,6 +5,7 @@
 # outside. New servers installed with bootstrap-server.sh are set up this way already.
 #
 #   sudo bash /opt/ce-school/deploy/enable-port-80.sh [server-ip-or-hostname]
+#   (SKIP_GIT=1 sudo -E bash ... when the code was copied onto the server by hand)
 #
 # It backs up /etc/ce-school/.env, rewrites the address settings, pulls the newest
 # code and redeploys. The database and the uploaded videos are not touched.
@@ -52,9 +53,15 @@ set_kv NEXT_PUBLIC_API_URL "http://$HOST/api/v1"
 set_kv S3_PUBLIC_ENDPOINT "http://$HOST"
 set_kv EXTRA_CORS_ORIGINS "http://$HOST"
 
-echo "==> updating the code"
-git -C "$APP_DIR" fetch --quiet origin "$BRANCH"
-git -C "$APP_DIR" reset --hard --quiet "origin/$BRANCH"
+if [ "${SKIP_GIT:-0}" = 1 ]; then
+  # The code was already copied onto the server by hand (e.g. a git bundle), because
+  # github.com is not reachable from here.
+  echo "==> using the code already on the server (SKIP_GIT=1)"
+else
+  echo "==> updating the code"
+  git -C "$APP_DIR" fetch --quiet origin "$BRANCH"
+  git -C "$APP_DIR" reset --hard --quiet "origin/$BRANCH"
+fi
 chmod +x "$APP_DIR"/deploy/*.sh
 
 echo "==> redeploying"
