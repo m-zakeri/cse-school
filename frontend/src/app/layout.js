@@ -4,16 +4,6 @@ import "./globals.css";
 const yekanBakh = localFont({
   src: [
     {
-      path: "../../public/fonts/ttf/Yekan Bakh FaNum 01 Hairline.ttf",
-      weight: "100",
-      style: "normal",
-    },
-    {
-      path: "../../public/fonts/ttf/Yekan Bakh FaNum 02 Thin.ttf",
-      weight: "200",
-      style: "normal",
-    },
-    {
       path: "../../public/fonts/ttf/Yekan Bakh FaNum 03 Light.ttf",
       weight: "300",
       style: "normal",
@@ -36,11 +26,6 @@ const yekanBakh = localFont({
     {
       path: "../../public/fonts/ttf/Yekan Bakh FaNum 07 Heavy.ttf",
       weight: "800",
-      style: "normal",
-    },
-    {
-      path: "../../public/fonts/ttf/Yekan Bakh FaNum 08 Fat.ttf",
-      weight: "900",
       style: "normal",
     },
   ],
@@ -108,6 +93,12 @@ export default function RootLayout({ children }) {
       <body
         className={`${yekanBakh.variable} font-yekan-bakh antialiased`}
       >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:right-3 focus:z-[100] focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm"
+        >
+          پرش به محتوای اصلی
+        </a>
         {children}
       </body>
     </html>

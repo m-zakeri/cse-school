@@ -18,6 +18,7 @@ import {
   MenuIcon,
   XMarkIcon,
   AcademicCapIcon,
+  HomeIcon,
 } from "../Icons";
 
 const Sidebar = () => {
@@ -25,7 +26,15 @@ const Sidebar = () => {
   const pathname = usePathname();
   const { term: currentTerm, loading: termLoading } = useCurrentTerm();
 
+  // Routes are served with a trailing slash, so compare without it.
+  const currentPath = (pathname || "/").replace(/\/+$/, "") || "/";
+
   const menuItems = [
+    {
+      title: "صفحه اصلی",
+      href: "/",
+      icon: HomeIcon,
+    },
     {
       title: "دوره‌های آموزشی",
       href: "/courses",
@@ -99,7 +108,7 @@ const Sidebar = () => {
           {/* Header Brand */}
           <div className="pb-6 mb-4 border-b border-slate-800/80">
             <Link
-              href="/courses"
+              href="/"
               className="flex items-center gap-3.5 group"
               onClick={() => setIsOpen(false)}
             >
@@ -125,12 +134,13 @@ const Sidebar = () => {
             {menuItems.map((item, index) => {
               const Icon = item.icon;
               const isActive =
-                pathname === item.href ||
-                (item.href === "/courses" && pathname.startsWith("/courses"));
+                currentPath === item.href ||
+                (item.href !== "/" && currentPath.startsWith(`${item.href}/`));
               return (
                 <Link
                   key={index}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200 ${
                     isActive
                       ? "bg-blue-600 text-white shadow-md shadow-blue-600/25 font-semibold"

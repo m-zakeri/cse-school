@@ -46,10 +46,10 @@ const Header = () => {
     router.push("/courses");
   };
 
-  // There is no home page ("/" redirects to the course catalogue), so the trail
-  // never starts at a "home": a section is one crumb, and a course page hangs
-  // under the catalogue it belongs to.
+  // A section is one crumb, and a course page hangs under the catalogue it
+  // belongs to. The home page is its own single crumb.
   const SECTION_TITLES = {
+    "/": "صفحه اصلی",
     "/courses": "دوره‌های آموزشی",
     "/instructors": "اساتید دوره",
     "/register": "اخذ و ثبت‌نام دوره",
