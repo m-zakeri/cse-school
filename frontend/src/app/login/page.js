@@ -195,7 +195,7 @@ function LoginContent() {
             <AcademicCapIcon className="w-7 h-7" />
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
-            پرتال یکپارچه مدرسه تخصصی CE
+            پرتال یکپارچه مدرسه کامپیوتر امیرکبیر
           </h1>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
             دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر

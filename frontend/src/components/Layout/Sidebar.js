@@ -108,7 +108,7 @@ const Sidebar = () => {
               </div>
               <div className="flex flex-col">
                 <span className="text-base font-bold text-white group-hover:text-blue-400 transition-colors">
-                  مدرسه تخصصی CE
+                  مدرسه کامپیوتر امیرکبیر
                 </span>
                 <span className="text-xs text-slate-400 font-normal">
                   دانشکده مهندسی کامپیوتر

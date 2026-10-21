@@ -181,7 +181,7 @@ export default function Calendar() {
                     تقویم آموزشی {selected.title}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    مدرسه آموزش‌های تخصصی امیرکبیر • {toPersianDigits(selected.course_count)} دوره
+                    مدرسه کامپیوتر امیرکبیر • {toPersianDigits(selected.course_count)} دوره
                   </p>
                 </div>
                 <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${phase.cls}`}>

@@ -240,7 +240,7 @@ export default function CourseDetailClient({ params }) {
             </h2>
             <p className="text-xs text-slate-600">دانشکده مهندسی کامپیوتر</p>
             <p className="text-xs text-slate-600">
-              مدرسه آموزش‌های تخصصی
+              مدرسه کامپیوتر امیرکبیر
             </p>
           </div>
           <div className="text-center">

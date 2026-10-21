@@ -203,7 +203,7 @@ export default function Courses() {
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight mb-3 leading-tight">
-            مدرسه آموزش‌های تخصصی
+            مدرسه کامپیوتر امیرکبیر
           </h1>
 
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">

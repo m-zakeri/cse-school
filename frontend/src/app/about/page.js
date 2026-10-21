@@ -19,7 +19,7 @@ export default function About() {
           <span>درباره دانشگاه و مرکز آموزش</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
-          درباره مدرسه آموزش‌های تخصصی
+          درباره مدرسه کامپیوتر امیرکبیر
         </h1>
         <p className="text-slate-600 text-sm">
           آشنایی با رسالت، اهداف و اعتبار مدارک صادر شده از دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر

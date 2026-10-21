@@ -23,7 +23,7 @@ export default function MainLayout({ children }) {
             {/* Footer */}
             <footer className="border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 py-6 px-4 text-center text-xs text-slate-500 dark:text-slate-400">
               <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-                <p>© سامانه آموزش‌های تخصصی دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر (پلی‌تکنیک تهران)</p>
+                <p>© مدرسه کامپیوتر امیرکبیر، دانشکده مهندسی کامپیوتر دانشگاه صنعتی امیرکبیر (پلی‌تکنیک تهران)</p>
                 <p className="text-slate-500 dark:text-slate-400 font-medium">
                   توسعه داده شده توسط <span className="text-slate-800 dark:text-slate-200 font-bold">حسین زارعی‌نژاد</span>
                 </p>
