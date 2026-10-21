@@ -98,7 +98,11 @@ services:
       - redis_data:/data
 
   minio:
-    image: quay.io/minio/minio:latest
+    # quay.io/minio/minio and Docker Hub's minio/minio are no longer published, so
+    # use the maintained Chainguard build (same MinIO server, S3 API unchanged).
+    image: cgr.dev/chainguard/minio:latest
+    # The data volume may already hold root-owned files from an earlier image.
+    user: "0:0"
     logging: *default-logging
     container_name: ce-school-minio
     restart: unless-stopped
