@@ -9,6 +9,7 @@ import { courses } from "@/data/sampleData";
 import { coursesFullDetails } from "@/data/coursesFullDetails";
 import { apiGetCourseDetail, apiGetUserEnrollments } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
+import { registrationClosedReason } from "@/lib/terms";
 import {
   toPersianDigits,
   formatPriceToman,
@@ -458,7 +459,7 @@ export default function CourseDetailClient({ params }) {
                 </Link>
               ) : course.term && !course.term.is_active ? (
                 <div className="w-full text-center bg-slate-100 text-slate-500 font-semibold py-3.5 px-4 rounded-xl text-xs">
-                  ثبت‌نام این دوره بسته است ({course.term.title})
+                  {registrationClosedReason(course.term)}
                 </div>
               ) : (
                 <Link

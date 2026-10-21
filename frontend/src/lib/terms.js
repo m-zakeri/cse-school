@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiGetCurrentTerm } from "./api";
+import { formatIsoShamsi } from "./jalali";
 
 /**
  * The current term (فصل جاری) is shown in many places: sidebar, banners, the
@@ -47,6 +48,25 @@ export function useCurrentTerm() {
   }, []);
 
   return state;
+}
+
+/**
+ * Why registration is closed for a course of a non-current term, in words the
+ * student can act on. Returns "" when the term is open (or unknown).
+ */
+export function registrationClosedReason(term) {
+  if (!term || term.is_active) return "";
+  const today = new Date().toISOString().slice(0, 10);
+  if (term.registration_start && term.registration_start > today) {
+    return `ثبت‌نام از ${formatIsoShamsi(term.registration_start)} باز می‌شود`;
+  }
+  if (term.registration_end && term.registration_end < today) {
+    return `مهلت ثبت‌نام ${term.title} به پایان رسیده است`;
+  }
+  if (term.start_date && term.start_date > today) {
+    return `ثبت‌نام ${term.title} هنوز آغاز نشده است`;
+  }
+  return `ثبت‌نام ${term.title} بسته است`;
 }
 
 // Season order used when an admin defines a term: the code is "<year>-<n>", the

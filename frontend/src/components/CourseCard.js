@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getAssetPath } from "@/lib/formatters";
+import { registrationClosedReason } from "@/lib/terms";
 import {
   BookOpenIcon,
   AcademicCapIcon,
@@ -124,8 +125,11 @@ const CourseCard = ({ course }) => {
             <ChevronLeftIcon className="w-3.5 h-3.5" />
           </Link>
           {course.registrationClosed ? (
-            <span className="inline-flex items-center justify-center bg-slate-100 text-slate-500 text-xs font-semibold py-2.5 px-3 rounded-xl">
-              ثبت‌نام بسته است
+            <span
+              className="inline-flex items-center justify-center text-center bg-slate-100 text-slate-500 text-[11px] leading-snug font-semibold py-2 px-2.5 rounded-xl"
+              title={registrationClosedReason(course.term) || "ثبت‌نام بسته است"}
+            >
+              {registrationClosedReason(course.term) || "ثبت‌نام بسته است"}
             </span>
           ) : (
             <Link

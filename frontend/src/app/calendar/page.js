@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiGetTerms } from "@/lib/api";
 import { formatIsoRange, formatIsoShamsi } from "@/lib/jalali";
 import { toPersianDigits } from "@/lib/formatters";
+import { buildTermEvents, downloadTermIcs } from "@/lib/ics";
 import {
   CalendarIcon,
   ClockIcon,
@@ -217,7 +218,17 @@ export default function Calendar() {
                 </div>
               )}
 
-              <div className="mt-6 pt-4 border-t border-slate-100">
+              <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-x-6 gap-y-3">
+                {buildTermEvents(selected).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => downloadTermIcs(selected)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                  >
+                    <CalendarIcon className="w-4 h-4" />
+                    افزودن تاریخ‌ها به تقویم گوشی یا رایانه (.ics)
+                  </button>
+                )}
                 <Link
                   href={selected.is_active ? "/courses" : `/courses?term=${encodeURIComponent(selected.code)}`}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-800"

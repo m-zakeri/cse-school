@@ -3,7 +3,6 @@
 import { useEffect, useState, useMemo } from "react";
 import MainLayout from "@/components/Layout/MainLayout";
 import CourseCard from "@/components/CourseCard";
-import { courses as initialCourses } from "@/data/sampleData";
 import { apiGetCourses, apiGetTerms } from "@/lib/api";
 import { useCurrentTerm } from "@/lib/terms";
 import { toPersianDigits } from "@/lib/formatters";
@@ -18,7 +17,10 @@ import {
 } from "@/components/Icons";
 
 export default function Courses() {
-  const [coursesList, setCoursesList] = useState(initialCourses);
+  const [coursesList, setCoursesList] = useState([]);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [sortBy, setSortBy] = useState("default");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedField, setSelectedField] = useState("all");
   const [selectedLevel, setSelectedLevel] = useState("all");
@@ -44,6 +46,7 @@ export default function Courses() {
     let cancelled = false;
     async function loadAllCourses() {
       setIsLoading(true);
+      setLoadError(false);
       try {
         const backendCourses = await apiGetCourses(termCode);
         if (cancelled) return;
@@ -109,8 +112,10 @@ export default function Courses() {
         }
       } catch {
         if (cancelled) return;
-        // The API is unreachable (or the term is unknown): show the sample catalogue instead.
-        setCoursesList(initialCourses);
+        // The API is unreachable (or the term is unknown). Say so instead of showing
+        // made-up courses that cannot be registered for.
+        setCoursesList([]);
+        setLoadError(true);
         setIsLoading(false);
         return;
       }
@@ -123,7 +128,7 @@ export default function Courses() {
     return () => {
       cancelled = true;
     };
-  }, [termCode]);
+  }, [termCode, reloadKey]);
 
   // Extract unique instructors
   const instructorOptions = useMemo(() => {
@@ -136,7 +141,7 @@ export default function Courses() {
 
   // Filtered courses
   const filteredCourses = useMemo(() => {
-    return coursesList.filter((c) => {
+    const matches = coursesList.filter((c) => {
       const q = searchQuery.trim().toLowerCase();
       const matchQuery =
         !q ||
@@ -173,7 +178,15 @@ export default function Courses() {
 
       return matchQuery && matchLevel && matchInstructor && matchField;
     });
-  }, [coursesList, searchQuery, selectedField, selectedLevel, selectedInstructor]);
+
+    const sorters = {
+      title: (a, b) => (a.title || "").localeCompare(b.title || "", "fa"),
+      price_asc: (a, b) => a.price - b.price,
+      price_desc: (a, b) => b.price - a.price,
+      newest: (a, b) => b.course_number - a.course_number,
+    };
+    return sorters[sortBy] ? [...matches].sort(sorters[sortBy]) : matches;
+  }, [coursesList, searchQuery, selectedField, selectedLevel, selectedInstructor, sortBy]);
 
   const hasActiveFilters =
     searchQuery !== "" ||
@@ -266,10 +279,13 @@ export default function Courses() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="جستجوی نام دوره، استاد، مباحث آموزشی..."
+              aria-label="جستجوی دوره"
               className="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-600 focus:bg-white transition-all"
             />
             {searchQuery && (
               <button
+                type="button"
+                aria-label="پاک کردن جستجو"
                 onClick={() => setSearchQuery("")}
                 className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 hover:text-slate-600 text-xs"
               >
@@ -282,6 +298,7 @@ export default function Courses() {
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
             {/* Level Filter */}
             <select
+              aria-label="مقطع تحصیلی"
               value={selectedLevel}
               onChange={(e) => setSelectedLevel(e.target.value)}
               className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
@@ -293,6 +310,7 @@ export default function Courses() {
 
             {/* Instructor Filter */}
             <select
+              aria-label="استاد"
               value={selectedInstructor}
               onChange={(e) => setSelectedInstructor(e.target.value)}
               className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
@@ -303,6 +321,19 @@ export default function Courses() {
                   {name}
                 </option>
               ))}
+            </select>
+
+            <select
+              aria-label="مرتب‌سازی"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-600"
+            >
+              <option value="default">مرتب‌سازی: پیش‌فرض</option>
+              <option value="newest">جدیدترین</option>
+              <option value="title">نام دوره (الفبا)</option>
+              <option value="price_asc">ارزان‌ترین</option>
+              <option value="price_desc">گران‌ترین</option>
             </select>
 
             {hasActiveFilters && (
@@ -407,7 +438,35 @@ export default function Courses() {
           </div>
         </div>
 
-        {!isLoading && coursesList.length === 0 ? (
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-busy="true" aria-label="در حال بارگذاری دوره‌ها">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden animate-pulse">
+                <div className="h-44 bg-slate-200" />
+                <div className="p-5 space-y-3">
+                  <div className="h-4 bg-slate-200 rounded w-3/4" />
+                  <div className="h-3 bg-slate-100 rounded w-1/2" />
+                  <div className="h-3 bg-slate-100 rounded w-full" />
+                  <div className="h-9 bg-slate-100 rounded-xl mt-4" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="bg-red-50 border border-red-200 rounded-3xl p-10 text-center">
+            <h3 className="text-base font-bold text-red-900 mb-1">دریافت فهرست دوره‌ها ممکن نشد</h3>
+            <p className="text-xs text-red-700 mb-5">
+              ارتباط با سرور برقرار نشد. اتصال شبکه را بررسی کنید و دوباره تلاش نمایید.
+            </p>
+            <button
+              type="button"
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2.5 px-6 rounded-xl transition-all"
+            >
+              تلاش مجدد
+            </button>
+          </div>
+        ) : coursesList.length === 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center">
             <h3 className="text-base font-bold text-slate-900 mb-1">
               هنوز دوره‌ای برای {viewedTerm ? viewedTerm.title : "این ترم"} تعریف نشده است
