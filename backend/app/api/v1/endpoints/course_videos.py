@@ -17,16 +17,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.deps import get_current_admin, get_optional_user
+from app.core.deps import get_current_admin, get_current_user, get_optional_user
 from app.core import storage
 from app.models.course import Course
 from app.models.course_video import CourseVideo
 from app.models.enrollment import Enrollment, EnrollmentStatus
+from app.models.video_progress import VideoProgress
 from app.models.user import User, UserRole
 from app.schemas.course_video import (
+    ContinueWatching,
     CourseVideoPlayback,
     CourseVideoRead,
     CourseVideoUpdate,
+    VideoProgressRead,
+    VideoProgressUpdate,
 )
 
 router = APIRouter()
@@ -86,12 +90,112 @@ async def list_course_videos(
     )
     videos = (await db.execute(stmt)).scalars().all()
 
+    progress = {}
+    if user is not None and videos:
+        rows = (
+            await db.execute(
+                select(VideoProgress).where(
+                    VideoProgress.user_id == user.id,
+                    VideoProgress.video_id.in_([v.id for v in videos]),
+                )
+            )
+        ).scalars().all()
+        progress = {p.video_id: p for p in rows}
+
     result = []
     for v in videos:
         data = CourseVideoRead.model_validate(v)
         data.locked = not (has_access or v.is_free_preview)
+        p = progress.get(v.id)
+        if p:
+            data.progress_seconds = p.position_seconds
+            data.completed = p.completed
         result.append(data)
     return result
+
+
+@router.get("/videos/progress/me", response_model=List[ContinueWatching])
+async def my_video_progress(
+    limit: int = 6,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Any:
+    """آخرین ویدیوهایی که کاربر دیده است، برای «ادامهٔ تماشا» در داشبورد."""
+    stmt = (
+        select(VideoProgress, CourseVideo, Course)
+        .join(CourseVideo, CourseVideo.id == VideoProgress.video_id)
+        .join(Course, Course.id == CourseVideo.course_id)
+        .where(VideoProgress.user_id == user.id)
+        .order_by(VideoProgress.updated_at.desc())
+        .limit(max(1, min(limit, 30)))
+    )
+    return [
+        ContinueWatching(
+            video_id=video.id,
+            video_title=video.title,
+            course_number=course.course_number,
+            course_title=course.title_fa,
+            position_seconds=p.position_seconds,
+            duration_seconds=p.duration_seconds,
+            completed=p.completed,
+            updated_at=p.updated_at,
+        )
+        for p, video, course in (await db.execute(stmt)).all()
+    ]
+
+
+@router.put(
+    "/{identifier}/videos/{video_id}/progress", response_model=VideoProgressRead
+)
+async def save_video_progress(
+    identifier: str,
+    video_id: uuid.UUID,
+    payload: VideoProgressUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Any:
+    """ذخیرهٔ نقطهٔ توقف کاربر در ویدیو تا پخش از همان‌جا ادامه پیدا کند."""
+    course = await _resolve_course(identifier, db)
+    video = (
+        await db.execute(
+            select(CourseVideo).where(
+                CourseVideo.id == video_id, CourseVideo.course_id == course.id
+            )
+        )
+    ).scalars().first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="ویدیو مورد نظر یافت نشد."
+        )
+    if not video.is_free_preview and not await _has_course_access(user, course, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="برای مشاهده ویدیوهای این دوره باید در آن ثبت‌نام کرده باشید.",
+        )
+
+    duration = payload.duration_seconds or video.duration_seconds
+    row = (
+        await db.execute(
+            select(VideoProgress).where(
+                VideoProgress.user_id == user.id, VideoProgress.video_id == video.id
+            )
+        )
+    ).scalars().first()
+    if not row:
+        row = VideoProgress(user_id=user.id, video_id=video.id, completed=False)
+        db.add(row)
+    row.position_seconds = payload.position_seconds
+    if duration:
+        row.duration_seconds = duration
+        # Watching 90% counts as done; once done it stays done.
+        row.completed = row.completed or payload.position_seconds >= 0.9 * duration
+    await db.commit()
+    return VideoProgressRead(
+        video_id=video.id,
+        position_seconds=row.position_seconds,
+        duration_seconds=row.duration_seconds,
+        completed=row.completed,
+    )
 
 
 @router.get(

@@ -17,6 +17,9 @@ class TermBrief(BaseModel):
     code: str
     title: str
     is_active: bool
+    registration_start: Optional[date] = None
+    registration_end: Optional[date] = None
+    start_date: Optional[date] = None
 
     class Config:
         from_attributes = True

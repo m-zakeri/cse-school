@@ -74,6 +74,7 @@ class UserRead(UserBase):
     role: UserRole
     is_verified: bool
     is_active: bool
+    must_change_password: bool = False
     created_at: datetime
 
     class Config:

@@ -166,6 +166,7 @@ async def update_profile(
                 detail="کلمه عبور فعلی وارد شده نادرست است.",
             )
         user.hashed_password = get_password_hash(profile_in.new_password)
+        user.must_change_password = False
 
     # Changing contact identifiers is a sensitive operation: require the current password
     # and make sure the new value is not already taken by another account.

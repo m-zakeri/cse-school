@@ -149,6 +149,74 @@ check("current term still enrolls", st == 201, (st, r))
 eid = r[0]["id"]
 check("enrollment course carries its term", r[0]["course"]["term"]["code"] == "1404-1", r[0].get("course"))
 
+# ---------- admin users, temporary passwords
+st, r = call("GET", "/users/", token=S)
+check("users list is admin only", st == 403, st)
+st, found = call("GET", "/users/?q=" + f"tq{suffix}", token=A)
+check("admin finds the student by e-mail", st == 200 and len(found) == 1 and found[0]["enrollment_count"] == 1, (st, found))
+student_id = found[0]["id"]
+st, r = call("POST", f"/users/{student_id}/reset-password", token=S)
+check("reset password is admin only", st == 403, st)
+st, tmp = call("POST", f"/users/{student_id}/reset-password", token=A)
+check("admin issues a temporary password", st == 200 and len(tmp["temporary_password"]) >= 8, (st, tmp))
+st, r = call("POST", "/auth/login", {"identifier": f"tq{suffix}@example.com", "password": "Qa-pass-123"})
+check("old password stops working", st == 401, st)
+st, r = call("POST", "/auth/login", {"identifier": f"tq{suffix}@example.com", "password": tmp["temporary_password"]})
+check("temporary password works and flags a forced change", st == 200 and r["user"]["must_change_password"] is True, (st, r))
+S = r["access_token"]
+st, r = call("PUT", "/auth/profile", {"current_password": tmp["temporary_password"], "new_password": "Qa-pass-456"}, token=S)
+check("choosing a new password clears the flag", st == 200 and r["must_change_password"] is False, (st, r))
+st, r = call("PATCH", f"/users/{found[0]['id']}", {"is_active": False}, token=A)
+check("admin deactivates an account", st == 200 and r["is_active"] is False, (st, r))
+st, r = call("GET", "/auth/me", token=S)
+check("deactivated account is locked out", st == 403, st)
+st, r = call("PATCH", f"/users/{found[0]['id']}", {"is_active": True}, token=A)
+check("admin reactivates it", st == 200 and r["is_active"] is True, (st, r))
+st, me = call("GET", "/auth/me", token=A)
+st, r = call("PATCH", f"/users/{me['id']}", {"is_active": False}, token=A)
+check("admin cannot deactivate themselves", st == 400, (st, r))
+
+# ---------- video progress (needs object storage, so it uploads a tiny fake clip)
+import uuid as _uuid
+c5 = call("GET", "/courses/5")[1]
+boundary = _uuid.uuid4().hex
+CRLF = chr(13) + chr(10)
+parts = []
+for name, value in (("title", "جلسه آزمایشی"), ("order_index", "1"), ("is_free_preview", "false"), ("duration_seconds", "100")):
+    parts.append(f'--{boundary}{CRLF}Content-Disposition: form-data; name="{name}"{CRLF}{CRLF}{value}{CRLF}'.encode())
+parts.append((f'--{boundary}{CRLF}Content-Disposition: form-data; name="file"; filename="t.mp4"{CRLF}'
+              f"Content-Type: video/mp4{CRLF}{CRLF}").encode())
+parts.append(bytes(2048))
+parts.append(f"{CRLF}--{boundary}--{CRLF}".encode())
+body = b"".join(parts)
+req = urllib.request.Request(API + f"/courses/{c5['id']}/videos", data=body, method="POST",
+                             headers={"Authorization": "Bearer " + A, "Content-Type": f"multipart/form-data; boundary={boundary}"})
+try:
+    with urllib.request.urlopen(req) as resp:
+        vid = json.loads(resp.read().decode())
+except urllib.error.HTTPError as exc:
+    vid = None
+    check("test video uploads", False, exc.read().decode())
+if vid:
+    vp = f"/courses/5/videos/{vid['id']}/progress"
+    st, r = call("PUT", vp, {"position_seconds": 30})
+    check("progress needs login", st == 401, st)
+    st, r = call("PUT", vp, {"position_seconds": 30, "duration_seconds": 100}, token=S)
+    check("enrolled student saves progress", st == 200 and r["position_seconds"] == 30 and not r["completed"], (st, r))
+    st, lst = call("GET", "/courses/5/videos", token=S)
+    check("video list returns the resume point", st == 200 and lst[0]["progress_seconds"] == 30, (st, lst))
+    st, cont = call("GET", "/courses/videos/progress/me", token=S)
+    check("continue-watching lists it", st == 200 and cont and cont[0]["video_id"] == vid["id"] and cont[0]["course_number"] == 5, (st, cont))
+    st, r = call("PUT", vp, {"position_seconds": 95, "duration_seconds": 100}, token=S)
+    check("90% watched counts as completed", st == 200 and r["completed"], (st, r))
+    st, r = call("PUT", vp, {"position_seconds": 5, "duration_seconds": 100}, token=S)
+    check("completed stays completed after rewinding", st == 200 and r["completed"], (st, r))
+    st, other = call("POST", "/auth/register", {"national_id": nid_with_checksum("2" + suffix), "phone_number": "0913" + str(random.randint(1000000, 9999999)),
+                                               "email": f"to{suffix}@example.com", "full_name": "دانشجوی دیگر", "password": "Qa-pass-123"})
+    st, r = call("PUT", vp, {"position_seconds": 10}, token=other["access_token"])
+    check("student without enrollment cannot save progress -> 403", st == 403, (st, r))
+    call("DELETE", f"/courses/{c5['id']}/videos/{vid['id']}", token=A)
+
 # moving a course with enrollments is refused; without is fine
 c5 = call("GET", "/courses/5")[1]
 st, r = call("PUT", f"/courses/{c5['id']}", {"term_id": t5["id"]}, token=A)

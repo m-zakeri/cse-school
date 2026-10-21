@@ -9,6 +9,7 @@ from app.models.term import Term
 from app.models.instructor import Instructor
 from app.models.course import Course, SyllabusTopic
 from app.models.course_video import CourseVideo  # noqa: F401  (registers the table)
+from app.models.video_progress import VideoProgress  # noqa: F401  (registers the table)
 from app.core.security import get_password_hash
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,12 @@ async def init_db(session: AsyncSession) -> None:
             text("CREATE INDEX IF NOT EXISTS ix_courses_source_course_id ON courses (source_course_id)")
         )
         await conn.execute(text("ALTER TABLE courses ADD COLUMN IF NOT EXISTS image_url VARCHAR(255)"))
+        await conn.execute(
+            text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password "
+                "BOOLEAN NOT NULL DEFAULT false"
+            )
+        )
 
     logger.info("Database tables initialized successfully.")
 

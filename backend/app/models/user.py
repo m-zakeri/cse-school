@@ -52,6 +52,13 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
     )
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+        nullable=False,
+        doc="کلمه عبور موقت است و کاربر باید پس از ورود آن را تغییر دهد",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
     )

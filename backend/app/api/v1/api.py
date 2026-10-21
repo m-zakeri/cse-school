@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     instructors,
     payments,
     certificates,
+    users,
 )
 
 api_router = APIRouter()
@@ -19,6 +20,7 @@ api_router.include_router(course_videos.router, prefix="/courses", tags=["Course
 api_router.include_router(instructors.router, prefix="/instructors", tags=["Instructors"])
 api_router.include_router(enrollments.router, prefix="/enrollments", tags=["Enrollments & Registration"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments & Financials"])
+api_router.include_router(users.router, prefix="/users", tags=["Users (admin)"])
 api_router.include_router(certificates.router, prefix="/certificates", tags=["Certificates & Verification"])
 
 
