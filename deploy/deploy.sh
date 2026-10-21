@@ -96,6 +96,15 @@ until curl -fsS -o /dev/null -m 5 http://127.0.0.1:3000/courses/; do
 done
 curl -fsS -o /dev/null -m 5 http://127.0.0.1:8000/health || deploy_fail "API /health failed"
 
+# What visitors actually use: nginx in front of everything (HTTP_PORT, 80 in production).
+HTTP_PORT="${HTTP_PORT:-8080}"
+until curl -fsS -o /dev/null -m 5 "http://127.0.0.1:$HTTP_PORT/nginx-health"; do
+  [ "$SECONDS" -lt "$deadline" ] || deploy_fail "nginx did not answer on :$HTTP_PORT"
+  sleep 3
+done
+curl -fsS -o /dev/null -m 5 "http://127.0.0.1:$HTTP_PORT/api/v1/" || deploy_fail "API not reachable through nginx"
+curl -fsS -o /dev/null -m 5 "http://127.0.0.1:$HTTP_PORT/courses/" || deploy_fail "site not reachable through nginx"
+
 trap - ERR
 echo "$(git rev-parse HEAD 2>/dev/null || echo unknown)" >"$STATE_DIR/deployed_sha"
 

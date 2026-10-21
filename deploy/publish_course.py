@@ -139,7 +139,9 @@ def main():
     elif not term["is_active"] and not args.activate:
         print("note: the term is NOT current, so registration for it is closed (re-run with --activate to open it)")
 
-    site = api.split("/api/")[0].rsplit(":", 1)[0] + ":3000"
+    site = api.split("/api/")[0]
+    if site.endswith(":8000"):  # a server that still exposes the app ports directly
+        site = site[: -len(":8000")] + ":3000"
     print(f"\ndone. Course page: {site}/courses/{course['course_number']}/")
 
 

@@ -75,10 +75,15 @@ FIRST_SUPERUSER_PASSWORD=$ADMIN_PASSWORD
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=$(rand 16)
 
+# nginx serves everything on one address and the default HTTP port. The app ports
+# (3000/8000/9000) stay on the server itself and are not reachable from outside.
+HTTP_PORT=80
+BIND_ADDR=127.0.0.1
+
 # What the BROWSER uses to reach the server (baked into the frontend build).
-NEXT_PUBLIC_API_URL=http://$SERVER_HOST:8000/api/v1
-S3_PUBLIC_ENDPOINT=http://$SERVER_HOST:9000
-EXTRA_CORS_ORIGINS=http://$SERVER_HOST:3000
+NEXT_PUBLIC_API_URL=http://$SERVER_HOST/api/v1
+S3_PUBLIC_ENDPOINT=http://$SERVER_HOST
+EXTRA_CORS_ORIGINS=http://$SERVER_HOST
 EOF
   chmod 600 "$ENV_FILE"
   echo "Generated secrets. Admin login: admin@aut.ac.ir / $ADMIN_PASSWORD"
@@ -97,9 +102,9 @@ systemctl start ce-school-update.timer ce-school-backup.timer ce-school-healthch
 
 log "Done"
 cat <<EOF
-Site:        http://$SERVER_HOST:3000
-API docs:    http://$SERVER_HOST:8000/docs
-Ports to allow through the firewall: 3000 (site), 8000 (API), 9000 (video files).
+Site:        http://$SERVER_HOST
+API docs:    http://$SERVER_HOST/docs
+Port to allow through the firewall: 80 only (nginx serves the site, the API and the videos).
 
 Status:      systemctl status ce-school ce-school-update.timer ce-school-backup.timer ce-school-healthcheck.timer
 Deploy log:  journalctl -u ce-school-update -n 50

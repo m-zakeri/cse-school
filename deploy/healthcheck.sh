@@ -24,7 +24,10 @@ mkdir -p "$STATE_DIR"
 
 ALERT_WEBHOOK_URL=""
 ALERT_EMAIL=""
+HTTP_PORT=8080
 if [ -f "$ENV_FILE" ]; then
+  HTTP_PORT="$(grep -E '^HTTP_PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2-)"
+  HTTP_PORT="${HTTP_PORT:-8080}"
   ALERT_WEBHOOK_URL="$(grep -E '^ALERT_WEBHOOK_URL=' "$ENV_FILE" | tail -1 | cut -d= -f2-)"
   ALERT_EMAIL="$(grep -E '^ALERT_EMAIL=' "$ENV_FILE" | tail -1 | cut -d= -f2-)"
 fi
@@ -47,7 +50,8 @@ notify() {
 
 healthy() {
   curl -fsS -m 8 -o /dev/null http://127.0.0.1:8000/health \
-    && curl -fsS -m 8 -o /dev/null http://127.0.0.1:3000/courses/
+    && curl -fsS -m 8 -o /dev/null http://127.0.0.1:3000/courses/ \
+    && curl -fsS -m 8 -o /dev/null "http://127.0.0.1:$HTTP_PORT/nginx-health"
 }
 
 fail_file="$STATE_DIR/health_failures"

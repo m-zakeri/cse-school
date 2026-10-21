@@ -78,6 +78,12 @@ jobs:
       - name: API smoke test
         run: python3 backend/tests/e2e_smoke.py
 
+      - name: API smoke test through nginx (the way visitors reach the site)
+        env:
+          API_URL: http://localhost:8080/api/v1
+          SITE_URL: http://localhost:8080
+        run: python3 backend/tests/e2e_smoke.py
+
       - name: Show logs on failure
         if: failure()
         run: docker compose logs --tail 200

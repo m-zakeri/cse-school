@@ -89,7 +89,7 @@ their calendar dates (typed in the Persian calendar) from the admin panel's **«
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:3000 (or through nginx at http://localhost:8080)
 - Backend Swagger Documentation: http://localhost:8000/docs
 - PostgreSQL Database: port 5432
 - Redis: port 6379

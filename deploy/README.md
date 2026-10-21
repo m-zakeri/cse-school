@@ -34,10 +34,30 @@ sudo bash /tmp/ce-school-setup/deploy/bootstrap-server.sh <SERVER_IP_OR_HOSTNAME
 4. installs and enables the systemd units below,
 5. builds and starts the stack and waits until it is healthy.
 
-Open these ports in the server firewall: **3000** (site), **8000** (API), **9000** (video files).
-The MinIO console (9001), PostgreSQL and Redis are bound to `127.0.0.1` only.
+Open **only port 80** in the server firewall. An nginx container (`deploy/nginx/default.conf`) is the
+single entry point and routes by path, so visitors never see a port number:
 
-Then: site at `http://<server>:3000`, API docs at `http://<server>:8000/docs`.
+| Address | Goes to |
+|---|---|
+| `http://<server>/` | the website (Next.js production build) |
+| `http://<server>/api/...`, `/docs` | the API (FastAPI) |
+| `http://<server>/course-videos/...` | the lecture videos (MinIO, signed time-limited links, read-only) |
+
+The app ports (3000, 8000, 9000), the MinIO console (9001), PostgreSQL and Redis are bound to
+`127.0.0.1` (`BIND_ADDR` in `.env`) and are not reachable from outside.
+
+### A server that was installed before nginx (one-time switch)
+
+If the server still serves the site on `:3000`, run once (it backs up `.env`, rewrites the address
+settings, updates the code and redeploys; data is untouched):
+
+```bash
+sudo bash /opt/ce-school/deploy/enable-port-80.sh
+```
+
+Afterwards the site is at `http://<server>/` and the old `:3000/:8000/:9000` addresses stop working
+from outside. Anything that used `--api http://<server>:8000/api/v1` (e.g. `publish_course.py`) now
+uses `--api http://<server>/api/v1`.
 
 ## What keeps it running
 
@@ -123,7 +143,10 @@ docker compose -p ce_school start minio
   (`passwd` on the server). Prefer SSH keys: `ssh-copy-id user@server`, then disable password login.
 * `/etc/ce-school/.env` holds every secret and is `chmod 600`; it is not in git.
 * The site is plain HTTP on a private network. If it is ever exposed beyond the university network,
-  put a TLS terminator (nginx/Caddy) in front and change the three URLs in `.env`.
+  add a certificate to nginx (listen on 443, redirect 80 to it) and change the three URLs in `.env`
+  to `https://`.
+* nginx overwrites `X-Forwarded-For` with the real client address, which the login rate limit relies on;
+  keep the app ports bound to `127.0.0.1` so nothing can reach the API around nginx.
 
 ## Optional: push-based deploy with a GitHub runner
 
