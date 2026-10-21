@@ -1,0 +1,20 @@
+[Unit]
+Description=CE School stack (docker compose)
+Documentation=file:///opt/ce-school/deploy/README.md
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/ce-school
+# Containers already restart with Docker (restart: unless-stopped); this unit also
+# recreates anything that is missing after a crash or power cut. --no-build: the
+# images are already on disk, so boot never depends on the network.
+ExecStart=/usr/bin/docker compose --env-file /etc/ce-school/.env up -d --no-build --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file /etc/ce-school/.env stop
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

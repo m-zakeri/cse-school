@@ -1,0 +1,11 @@
+[Unit]
+Description=CE School: deploy new commits from GitHub when CI is green
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ce-school
+ExecStart=/usr/bin/bash /opt/ce-school/deploy/auto-update.sh
+# A deploy builds images; give it room but never hang forever.
+TimeoutStartSec=1800

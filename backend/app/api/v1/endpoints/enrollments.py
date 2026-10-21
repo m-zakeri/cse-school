@@ -43,6 +43,11 @@ def generate_tracking_code() -> str:
     return f"AUT-1404-{random_hex}"
 
 
+def registration_is_closed(course: Course) -> bool:
+    """Registration is open only for courses of the current term (or term-less ones)."""
+    return course.term is not None and not course.term.is_active
+
+
 def enrollment_options():
     return [
         selectinload(Enrollment.course).selectinload(Course.instructor),
@@ -191,6 +196,12 @@ async def create_enrollment(
             detail="دوره مورد نظر یافت نشد.",
         )
 
+    if registration_is_closed(course):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"ثبت‌نام دوره‌های «{course.term.title}» در حال حاضر باز نیست.",
+        )
+
     user = await _resolve_enrolling_user(enroll_in, current_user, db)
 
     stmt_exist = (
@@ -256,7 +267,7 @@ async def create_batch_enrollments(
         stmt_course = resolve_course_query(c_id)
         res_course = await db.execute(stmt_course)
         course = res_course.scalars().first()
-        if not course or not course.is_active:
+        if not course or not course.is_active or registration_is_closed(course):
             continue
 
         stmt_exist = select(Enrollment).where(

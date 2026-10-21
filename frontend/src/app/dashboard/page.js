@@ -24,6 +24,7 @@ import {
 } from "@/components/Icons";
 import { toPersianDigits, formatTrackingCode } from "@/lib/formatters";
 import CustomModal from "@/components/UI/CustomModal";
+import { useCurrentTerm } from "@/lib/terms";
 import { useToast } from "@/components/UI/ToastProvider";
 
 const ENROLLMENT_STATUS = {
@@ -60,6 +61,7 @@ function getInstructorName(course) {
 }
 
 export default function StudentDashboard() {
+  const { term: currentTerm } = useCurrentTerm();
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [user, setUser] = useState(null);
@@ -382,7 +384,9 @@ export default function StudentDashboard() {
             </div>
             <div>
               <p className="text-xs text-slate-500">ترم جاری</p>
-              <p className="text-sm font-extrabold text-indigo-600">پاییز ۱۴۰۴</p>
+              <p className="text-sm font-extrabold text-indigo-600">
+                {currentTerm ? currentTerm.title.replace(/^ترم\s+/, "") : "تعیین نشده"}
+              </p>
             </div>
           </div>
         </div>
@@ -436,7 +440,7 @@ export default function StudentDashboard() {
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <AcademicCapIcon className="w-5 h-5 text-blue-600" />
-              <span>دوره‌های اخذ شده در ترم پاییز ۱۴۰۴</span>
+              <span>دوره‌های اخذ شده</span>
             </h2>
             <Link
               href="/register"
@@ -456,7 +460,7 @@ export default function StudentDashboard() {
                 هنوز دوره‌ای در این ترم اخذ نکرده‌اید
               </h3>
               <p className="text-xs text-slate-500 mb-6">
-                جهت مشاهده فهرست دوره‌های فعال ترم پاییز ۱۴۰۴ و ثبت‌نام روی دکمه زیر کلیک نمایید.
+                {currentTerm ? `جهت مشاهده فهرست دوره‌های فعال ${currentTerm.title} و ثبت‌نام روی دکمه زیر کلیک نمایید.` : "جهت مشاهده فهرست دوره‌ها و ثبت‌نام روی دکمه زیر کلیک نمایید."}
               </p>
               <Link
                 href="/register"
@@ -498,6 +502,11 @@ export default function StudentDashboard() {
                       <h3 className="text-base font-bold text-slate-900">
                         {courseData?.title_fa || courseData?.title}
                       </h3>
+                      {courseData?.term?.title && (
+                        <span className="inline-block bg-indigo-50 text-indigo-700 border border-indigo-100 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">
+                          {courseData.term.title}
+                        </span>
+                      )}
 
                       <p className="text-xs text-slate-500">
                         مدرس: {instructorName} • {courseData?.units || "۳ واحد"}
@@ -560,7 +569,7 @@ export default function StudentDashboard() {
             <div className="flex items-center gap-2.5 mb-3 text-blue-600">
               <SparklesIcon className="w-5 h-5" />
               <h3 className="text-sm font-bold text-slate-900">
-                وبینار معارفه و شروع جلسات ترم پاییز ۱۴۰۴
+                وبینار معارفه و شروع جلسات{currentTerm ? ` ${currentTerm.title}` : ""}
               </h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed mb-4">

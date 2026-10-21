@@ -4,7 +4,7 @@ from typing import List, Any
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import storage
@@ -21,19 +21,49 @@ from app.schemas.course import (
     CourseDetailRead,
     CourseCreate,
     CourseUpdate,
+    CourseImportRequest,
+    CourseImportResult,
+    CourseImportSkipped,
 )
 
 router = APIRouter()
 
 
+async def find_term(ref: str, db: AsyncSession) -> Term:
+    """Resolve a term by uuid or by its code (e.g. 1405-1)."""
+    stmt = select(Term)
+    try:
+        stmt = stmt.where(Term.id == uuid.UUID(ref))
+    except ValueError:
+        stmt = stmt.where(Term.code == ref)
+    found = (await db.execute(stmt)).scalars().first()
+    if not found:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="ترم مورد نظر یافت نشد."
+        )
+    return found
+
+
+def unique_slug_for(base: str, taken: set) -> str:
+    slug = base
+    while slug in taken:
+        slug = f"{base}-{uuid.uuid4().hex[:4]}"
+    taken.add(slug)
+    return slug
+
+
 @router.get("/", response_model=List[CourseListRead])
 async def get_courses(
     include_inactive: bool = False,
+    term: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     user: Optional[User] = Depends(get_optional_user),
 ) -> Any:
     """دریافت لیست تمامی دوره‌های آموزشی فعال به همراه اطلاعات استاد.
-    مدیر می‌تواند با include_inactive=true دوره‌های غیرفعال را هم ببیند."""
+    مدیر می‌تواند با include_inactive=true دوره‌های غیرفعال را هم ببیند.
+
+    term: کد یا شناسهٔ ترم، یا «all» برای همهٔ ترم‌ها. بدون این پارامتر فقط
+    دوره‌های ترم جاری (به‌علاوهٔ دوره‌های بدون ترم) برگردانده می‌شود."""
     stmt = (
         select(Course)
         .options(selectinload(Course.instructor))
@@ -41,6 +71,17 @@ async def get_courses(
     )
     if not (include_inactive and user is not None and user.role == UserRole.ADMIN):
         stmt = stmt.where(Course.is_active == True)
+
+    if term != "all":
+        if term:
+            wanted = await find_term(term, db)
+            stmt = stmt.where(Course.term_id == wanted.id)
+        else:
+            current = (
+                await db.execute(select(Term.id).where(Term.is_active == True))
+            ).scalar()
+            if current is not None:
+                stmt = stmt.where(or_(Course.term_id == current, Course.term_id.is_(None)))
     result = await db.execute(stmt)
     courses = result.scalars().all()
     return courses
@@ -101,9 +142,18 @@ async def create_course(
             db.add(instructor)
             await db.flush()
 
-    # 4. Get active Term
-    res_term = await db.execute(select(Term).where(Term.is_active == True))
-    term = res_term.scalars().first()
+    # 4. The chosen term, else the current one
+    if course_in.term_id:
+        term = (
+            await db.execute(select(Term).where(Term.id == course_in.term_id))
+        ).scalars().first()
+        if not term:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="ترم انتخاب‌شده یافت نشد."
+            )
+    else:
+        res_term = await db.execute(select(Term).where(Term.is_active == True))
+        term = res_term.scalars().first()
 
     # 5. Create Course
     course = Course(
@@ -160,6 +210,7 @@ async def create_course(
             selectinload(Course.instructor),
             selectinload(Course.topics),
         )
+        .execution_options(populate_existing=True)
     )
     res_full = await db.execute(stmt_full)
     return res_full.scalars().first()
@@ -226,6 +277,28 @@ async def update_course(
     instructor_id = updates.pop("instructor_id", None)
     instructor_name = updates.pop("instructor_name", None)
 
+    new_term_id = updates.pop("term_id", None)
+    if new_term_id:
+        if not (await db.execute(select(Term.id).where(Term.id == new_term_id))).first():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="ترم انتخاب‌شده یافت نشد."
+            )
+        if new_term_id != course.term_id:
+            enrolled = (
+                await db.execute(
+                    select(func.count(Enrollment.id)).where(Enrollment.course_id == course.id)
+                )
+            ).scalar() or 0
+            if enrolled:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"این دوره {enrolled} ثبت‌نام دارد و انتقال آن به ترم دیگر سوابق دانشجویان را "
+                        "ناسازگار می‌کند. برای ترم جدید از «تکرار دوره در ترم دیگر» استفاده کنید."
+                    ),
+                )
+            course.term_id = new_term_id
+
     if instructor_id:
         res_inst = await db.execute(select(Instructor).where(Instructor.id == instructor_id))
         if not res_inst.scalars().first():
@@ -267,6 +340,7 @@ async def update_course(
         select(Course)
         .where(Course.id == course.id)
         .options(selectinload(Course.instructor), selectinload(Course.topics))
+        .execution_options(populate_existing=True)
     )
     reload_res = await db.execute(reload_stmt)
     return reload_res.scalars().first()
@@ -317,3 +391,131 @@ async def delete_course(
             await run_in_threadpool(storage.delete_object, key)
         except Exception:
             pass
+
+
+@router.post("/import", response_model=CourseImportResult, status_code=status.HTTP_201_CREATED)
+async def import_courses_into_term(
+    body: CourseImportRequest,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
+) -> Any:
+    """تکرار دوره‌ها در ترم دیگر.
+
+    هر دوره با همهٔ مشخصات و سرفصل‌هایش در ترم مقصد کپی می‌شود تا نیازی به تعریف
+    دوباره نباشد. ثبت‌نام‌ها و ویدیوهای ترم قبل منتقل نمی‌شوند (ویدیو فایل مشترک
+    ندارد تا حذف یک دوره، ویدیوی دوره‌ای دیگر را از بین نبرد)."""
+    target = (
+        await db.execute(select(Term).where(Term.id == body.target_term_id))
+    ).scalars().first()
+    if not target:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="ترم مقصد یافت نشد."
+        )
+    if not body.course_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="حداقل یک دوره برای تکرار انتخاب کنید.",
+        )
+
+    sources = (
+        await db.execute(
+            select(Course)
+            .where(Course.id.in_(set(body.course_ids)))
+            .options(selectinload(Course.topics))
+            .order_by(Course.course_number)
+        )
+    ).scalars().all()
+    if not sources:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="دوره‌های انتخاب‌شده یافت نشدند."
+        )
+
+    in_target = (
+        await db.execute(select(Course).where(Course.term_id == target.id))
+    ).scalars().all()
+    already_copied = {c.source_course_id for c in in_target if c.source_course_id}
+    existing_titles = {(c.title_fa.strip(), c.title_en.strip().lower()) for c in in_target}
+
+    taken_slugs = set((await db.execute(select(Course.slug))).scalars().all())
+    next_number = (
+        await db.execute(select(func.coalesce(func.max(Course.course_number), 0)))
+    ).scalar()
+
+    created, skipped = [], []
+    for src in sources:
+        reason = None
+        if src.term_id == target.id:
+            reason = "این دوره هم‌اکنون در همین ترم است."
+        elif (
+            src.id in already_copied
+            or (src.title_fa.strip(), src.title_en.strip().lower()) in existing_titles
+        ):
+            reason = "این دوره قبلاً در ترم مقصد تعریف یا وارد شده است."
+        if reason:
+            skipped.append(
+                CourseImportSkipped(course_id=src.id, title_fa=src.title_fa, reason=reason)
+            )
+            continue
+
+        next_number += 1
+        base_slug = re.sub(r"-\d{4}-\d+$", "", src.slug)
+        copy = Course(
+            course_number=next_number,
+            term_id=target.id,
+            instructor_id=src.instructor_id,
+            source_course_id=src.id,
+            image_url=src.image_url,
+            title_fa=src.title_fa,
+            title_en=src.title_en,
+            slug=unique_slug_for(f"{base_slug}-{target.code}", taken_slugs),
+            field=src.field,
+            type=src.type,
+            units=src.units,
+            level=src.level,
+            course_level=src.course_level,
+            price=src.price,
+            capacity=src.capacity,
+            prerequisites=src.prerequisites,
+            corequisites=src.corequisites,
+            prerequisite_topics=src.prerequisite_topics,
+            duration=src.duration,
+            delivery_method=src.delivery_method,
+            description=src.description,
+            objectives=list(src.objectives or []),
+            target_audience=list(src.target_audience or []),
+            software_tools=[dict(t) for t in (src.software_tools or [])],
+            grading_info=[dict(g) for g in (src.grading_info or [])],
+            references=list(src.references or []),
+            assignments_info=src.assignments_info,
+            author=src.author,
+            version=src.version,
+            is_active=True,
+        )
+        db.add(copy)
+        await db.flush()
+        for topic in src.topics:
+            db.add(
+                SyllabusTopic(
+                    course_id=copy.id,
+                    order_index=topic.order_index,
+                    title=topic.title,
+                    description=topic.description,
+                    sessions_count=topic.sessions_count,
+                )
+            )
+        existing_titles.add((src.title_fa.strip(), src.title_en.strip().lower()))
+        created.append(copy.id)
+
+    await db.commit()
+
+    created_courses = []
+    if created:
+        created_courses = (
+            await db.execute(
+                select(Course)
+                .where(Course.id.in_(created))
+                .options(selectinload(Course.instructor))
+                .order_by(Course.course_number)
+            )
+        ).scalars().all()
+    return CourseImportResult(created=created_courses, skipped=skipped)

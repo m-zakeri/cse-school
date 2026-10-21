@@ -63,6 +63,26 @@ Students register themselves from `/login?tab=signup`.
 Seed data (the term, the four instructors and the seven courses) is only written into an
 empty database. After that the admin panel owns the catalogue and restarts never overwrite it.
 
+### Server deployment, CI/CD
+
+GitHub Actions (`.github/workflows/ci.yml`) builds the app and runs an end-to-end API smoke test
+(`backend/tests/e2e_smoke.py`) on every push and pull request. A production server follows `main`
+and deploys each commit whose CI is green, rolls back a deploy that does not come up healthy,
+restarts after a power cut and backs up nightly. Setup and operations: [deploy/README.md](deploy/README.md).
+
+### Terms (فصل‌ها) and repeating courses
+
+Every course belongs to a **term** (e.g. «ترم پاییز ۱۴۰۴», code `1404-1`). Admins manage terms and
+their calendar dates (typed in the Persian calendar) from the admin panel's **«ترم‌ها و تقویم»** tab.
+
+- Exactly one term is **current**; registration is open only for its courses. Other terms stay
+  browsable (course list, syllabus, academic calendar) but read-only.
+- **Repeating courses:** in the admin **courses** tab, «تکرار دوره‌ها از ترم دیگر» copies courses
+  (with syllabus, instructor, picture) into another term so nothing is defined twice. Enrollments and
+  videos are not copied; a course already present in the target term is skipped.
+- API: `GET /api/v1/terms/`, `GET /api/v1/terms/current`, admin `POST/PUT/DELETE /terms/{id}`,
+  `POST /terms/{id}/activate`, `POST /courses/import`, and `GET /courses/?term=<code|all>`.
+
 ### Development Mode
 
 ```bash

@@ -3,6 +3,8 @@ from typing import List, Optional
 from decimal import Decimal
 from pydantic import BaseModel, field_serializer
 
+from app.schemas.term import TermBrief
+
 
 class TopicCreate(BaseModel):
     order_index: int = 1
@@ -15,6 +17,8 @@ class CourseCreate(BaseModel):
     title_fa: str
     title_en: str
     slug: Optional[str] = None
+    # The term (فصل) the course is offered in; defaults to the current term.
+    term_id: Optional[uuid.UUID] = None
     # Either pick an existing instructor by id, or name one (created on demand).
     instructor_id: Optional[uuid.UUID] = None
     instructor_name: Optional[str] = None
@@ -47,6 +51,7 @@ class CourseUpdate(BaseModel):
 
     title_fa: Optional[str] = None
     title_en: Optional[str] = None
+    term_id: Optional[uuid.UUID] = None
     instructor_id: Optional[uuid.UUID] = None
     instructor_name: Optional[str] = None
     field: Optional[str] = None
@@ -112,7 +117,9 @@ class CourseListRead(BaseModel):
     price: Decimal
     capacity: int
     is_active: bool
+    image_url: Optional[str] = None
     instructor: Optional[InstructorRead] = None
+    term: Optional[TermBrief] = None
 
     class Config:
         from_attributes = True
@@ -146,3 +153,21 @@ class CourseDetailRead(CourseListRead):
 
     class Config:
         from_attributes = True
+
+
+class CourseImportRequest(BaseModel):
+    """Copy existing courses into another term instead of defining them again."""
+
+    course_ids: List[uuid.UUID]
+    target_term_id: uuid.UUID
+
+
+class CourseImportSkipped(BaseModel):
+    course_id: uuid.UUID
+    title_fa: str
+    reason: str
+
+
+class CourseImportResult(BaseModel):
+    created: List[CourseListRead] = []
+    skipped: List[CourseImportSkipped] = []

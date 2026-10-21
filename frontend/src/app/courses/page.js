@@ -4,7 +4,8 @@ import { useEffect, useState, useMemo } from "react";
 import MainLayout from "@/components/Layout/MainLayout";
 import CourseCard from "@/components/CourseCard";
 import { courses as initialCourses } from "@/data/sampleData";
-import { apiGetCourses } from "@/lib/api";
+import { apiGetCourses, apiGetTerms } from "@/lib/api";
+import { useCurrentTerm } from "@/lib/terms";
 import { toPersianDigits } from "@/lib/formatters";
 import {
   AcademicCapIcon,
@@ -22,12 +23,31 @@ export default function Courses() {
   const [selectedField, setSelectedField] = useState("all");
   const [selectedLevel, setSelectedLevel] = useState("all");
   const [selectedInstructor, setSelectedInstructor] = useState("all");
+  const [terms, setTerms] = useState([]);
+  // null = the current term; a code browses another term (registration is closed there).
+  const [termCode, setTermCode] = useState(() =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("term")
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const { term: currentTerm } = useCurrentTerm();
 
   useEffect(() => {
+    apiGetTerms().then(setTerms).catch(() => setTerms([]));
+  }, []);
+
+  const viewedTerm =
+    terms.find((t) => (termCode ? t.code === termCode : t.is_active)) || (termCode ? null : currentTerm);
+
+  useEffect(() => {
+    let cancelled = false;
     async function loadAllCourses() {
+      setIsLoading(true);
       try {
-        const backendCourses = await apiGetCourses();
-        if (backendCourses && backendCourses.length > 0) {
+        const backendCourses = await apiGetCourses(termCode);
+        if (cancelled) return;
+        if (Array.isArray(backendCourses)) {
           const validCourses = backendCourses.filter((c) => {
             const t = c.title_fa || c.title || "";
             return t && !t.includes("?");
@@ -54,6 +74,8 @@ export default function Courses() {
             return {
               id: numId,
               course_number: numId,
+              term: c.term || null,
+              registrationClosed: Boolean(c.term && !c.term.is_active),
               title,
               englishTitle: engTitle,
               instructor,
@@ -65,6 +87,7 @@ export default function Courses() {
               price: Number(c.price) || 2500000,
               description: c.description || field,
               image:
+                c.image_url ||
                 c.image ||
                 `/photos/coursepic/${
                   numId === 1
@@ -81,17 +104,26 @@ export default function Courses() {
           });
 
           setCoursesList(formatted);
+          setIsLoading(false);
           return;
         }
       } catch {
-        // Fallback
+        if (cancelled) return;
+        // The API is unreachable (or the term is unknown): show the sample catalogue instead.
+        setCoursesList(initialCourses);
+        setIsLoading(false);
+        return;
       }
 
-      setCoursesList(initialCourses);
+      setCoursesList([]);
+      setIsLoading(false);
     }
 
     loadAllCourses();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [termCode]);
 
   // Extract unique instructors
   const instructorOptions = useMemo(() => {
@@ -163,11 +195,15 @@ export default function Courses() {
         <div className="relative z-10 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-300 text-xs font-semibold mb-4 backdrop-blur-md">
             <CalendarIcon className="w-4 h-4 text-blue-400" />
-            <span>پذیرش ترم پاییز ۱۴۰۴ — ثبت‌نام فعال</span>
+            <span>
+              {viewedTerm
+                ? `${viewedTerm.title} — ${viewedTerm.is_active ? "ثبت‌نام فعال" : "ثبت‌نام این ترم بسته است"}`
+                : "دوره‌های آموزشی دانشکده"}
+            </span>
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight mb-3 leading-tight">
-            مدرسه پاییزه آموزش‌های تخصصی
+            مدرسه آموزش‌های تخصصی
           </h1>
 
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
@@ -281,6 +317,31 @@ export default function Courses() {
           </div>
         </div>
 
+        {/* Term (فصل) switcher: the current term by default, past and upcoming ones on demand */}
+        {terms.length > 1 && (
+          <div className="flex items-center gap-2 overflow-x-auto pt-4 mt-4 border-t border-slate-100 no-scrollbar">
+            <span className="text-xs text-slate-400 font-medium shrink-0 ml-1">ترم:</span>
+            {terms.map((t) => {
+              const selected = termCode ? t.code === termCode : t.is_active;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTermCode(t.is_active ? null : t.code)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${
+                    selected
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {t.title.replace(/^ترم\s+/, "")}
+                  {t.is_active ? " (جاری)" : ""}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Track / Field Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pt-4 mt-4 border-t border-slate-100 no-scrollbar">
           <span className="text-xs text-slate-400 font-medium shrink-0 ml-1">
@@ -346,7 +407,16 @@ export default function Courses() {
           </div>
         </div>
 
-        {filteredCourses.length === 0 ? (
+        {!isLoading && coursesList.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center">
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              هنوز دوره‌ای برای {viewedTerm ? viewedTerm.title : "این ترم"} تعریف نشده است
+            </h3>
+            <p className="text-xs text-slate-500">
+              دوره‌های این ترم پس از تعریف توسط دانشکده در همین صفحه نمایش داده می‌شود.
+            </p>
+          </div>
+        ) : filteredCourses.length === 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center">
             <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
               <BookOpenIcon className="w-7 h-7" />

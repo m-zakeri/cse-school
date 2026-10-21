@@ -1,0 +1,8 @@
+[Unit]
+Description=CE School: back up the database and uploaded videos
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/ce-school/deploy/backup.sh

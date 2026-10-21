@@ -49,6 +49,10 @@ class Settings(BaseSettings):
         "http://localhost:8000",
     ]
 
+    # Extra browser origins allowed to call the API, comma separated
+    # (e.g. "http://172.23.131.11:3000"). Added to CORS_ORIGINS.
+    EXTRA_CORS_ORIGINS: str = ""
+
     # Object storage for course videos (S3-compatible: MinIO locally, Arvan/S3 in prod).
     # INTERNAL is what the backend uses to reach storage; PUBLIC is the host baked
     # into presigned URLs handed to the browser, so it must be reachable from there.
@@ -100,6 +104,12 @@ class Settings(BaseSettings):
             reason,
         )
         return self
+
+
+    @property
+    def cors_allowed_origins(self) -> List[str]:
+        extra = [o.strip().rstrip("/") for o in self.EXTRA_CORS_ORIGINS.split(",") if o.strip()]
+        return list(dict.fromkeys([*self.CORS_ORIGINS, *extra]))
 
 
 settings = Settings()

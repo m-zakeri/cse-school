@@ -1,6 +1,11 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import MainLayout from "@/components/Layout/MainLayout";
 import Link from "next/link";
-import { courses } from "@/data/sampleData";
+import { courses as sampleCourses } from "@/data/sampleData";
+import { apiGetCourses, apiGetTerms } from "@/lib/api";
+import { toPersianDigits } from "@/lib/formatters";
 import {
   DocumentTextIcon,
   AcademicCapIcon,
@@ -9,7 +14,50 @@ import {
   CalendarIcon,
 } from "@/components/Icons";
 
+// Maps the API's course summary to the shape this table renders.
+function toRow(c) {
+  return {
+    id: c.course_number,
+    title: c.title_fa,
+    englishTitle: c.title_en,
+    instructor: c.instructor?.name || "عضو هیئت علمی",
+    level: c.level,
+    units: c.units,
+    term: c.term?.title || "",
+  };
+}
+
 export default function Syllabus() {
+  const [courses, setCourses] = useState([]);
+  const [terms, setTerms] = useState([]);
+  const [termCode, setTermCode] = useState(null); // null = current term
+  const [state, setState] = useState("loading"); // loading | ready | offline
+
+  useEffect(() => {
+    apiGetTerms().then(setTerms).catch(() => setTerms([]));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    apiGetCourses(termCode)
+      .then((list) => {
+        if (cancelled) return;
+        setCourses((list || []).map(toRow));
+        setState("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCourses(sampleCourses.map((c) => ({ ...c, term: "" })));
+        setState("offline");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [termCode]);
+
+  const viewedTerm = terms.find((t) => (termCode ? t.code === termCode : t.is_active));
+
   return (
     <MainLayout>
       <div className="mb-8">
@@ -36,10 +84,41 @@ export default function Syllabus() {
               <h2 className="text-base font-bold text-slate-900">
                 جدول دوره‌های فعال و سرفصل‌ها
               </h2>
-              <p className="text-xs text-slate-500">ترم پاییز ۱۴۰۴</p>
+              <p className="text-xs text-slate-500">
+                {viewedTerm ? viewedTerm.title : "همه دوره‌ها"} • {toPersianDigits(courses.length)} دوره
+              </p>
             </div>
           </div>
+
+          {terms.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+              <span className="text-xs text-slate-400 font-medium shrink-0">ترم:</span>
+              {terms.map((t) => {
+                const selected = termCode ? t.code === termCode : t.is_active;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTermCode(t.is_active ? null : t.code)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all ${
+                      selected
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {t.title.replace(/^ترم\s+/, "")}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {state === "offline" && (
+          <p className="px-6 py-3 text-xs text-amber-700 bg-amber-50 border-b border-amber-100">
+            ارتباط با سرور برقرار نشد؛ فهرست نمونه نمایش داده می‌شود.
+          </p>
+        )}
 
         <div className="overflow-x-auto">
           <table className="w-full text-right border-collapse">
@@ -54,6 +133,13 @@ export default function Syllabus() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
+              {state === "ready" && courses.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-slate-500">
+                    دوره‌ای برای این ترم تعریف نشده است.
+                  </td>
+                </tr>
+              )}
               {courses.map((course, index) => (
                 <tr
                   key={course.id}
@@ -90,7 +176,7 @@ export default function Syllabus() {
                   <td className="py-4 px-6 text-center">
                     <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 font-semibold px-2.5 py-1 rounded-full text-[11px]">
                       <CalendarIcon className="w-3 h-3" />
-                      <span>پاییز ۱۴۰۴</span>
+                      <span>{course.term ? course.term.replace(/^ترم\s+/, "") : "—"}</span>
                     </span>
                   </td>
                   <td className="py-4 px-6 text-center">

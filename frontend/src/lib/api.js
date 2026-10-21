@@ -41,6 +41,19 @@ function handleExpiredSession() {
   window.location.assign(`${base}/login/?redirect=${back}`);
 }
 
+// FastAPI sends a string for our own errors and a list of {msg} objects for
+// request-validation failures (HTTP 422).
+function describeApiError(detail, status) {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((d) => (typeof d?.msg === "string" ? d.msg.replace(/^Value error, /, "") : ""))
+      .filter(Boolean);
+    if (msgs.length) return msgs.join(" | ");
+  }
+  return `Request failed with status ${status}`;
+}
+
 export async function fetchFromAPI(endpoint, options = {}) {
   try {
     const token = getAuthToken();
@@ -63,11 +76,7 @@ export async function fetchFromAPI(endpoint, options = {}) {
         handleExpiredSession();
       }
 
-      throw new Error(
-        typeof errorData.detail === "string"
-          ? errorData.detail
-          : `Request failed with status ${res.status}`
-      );
+      throw new Error(describeApiError(errorData.detail, res.status));
     }
 
     // 204 (and other empty bodies) have nothing to parse.
@@ -114,14 +123,17 @@ export async function apiRegister(userData) {
 // ----------------------------------------------------
 // Courses API — the backend owns the catalogue.
 // ----------------------------------------------------
-export async function apiGetCourses() {
-  return await fetchFromAPI("/courses/");
+// With no argument this is the current term's catalogue; pass a term code
+// (or "all") to browse another term.
+export async function apiGetCourses(term) {
+  const query = term ? `?term=${encodeURIComponent(term)}` : "";
+  return await fetchFromAPI(`/courses/${query}`);
 }
 
 // Admin view of the catalogue: deactivated courses are included so they can be
 // found again and re-activated.
 export async function apiGetCoursesAdmin() {
-  return await fetchFromAPI("/courses/?include_inactive=true");
+  return await fetchFromAPI("/courses/?include_inactive=true&term=all");
 }
 
 export async function apiGetCourseDetail(identifier) {
@@ -148,6 +160,41 @@ export async function apiDeleteCourse(courseId) {
   return await fetchFromAPI(`/courses/${courseId}`, {
     method: "DELETE",
   });
+}
+
+// Copies existing courses (with their syllabus) into another term.
+export async function apiImportCourses(courseIds, targetTermId) {
+  return await fetchFromAPI("/courses/import", {
+    method: "POST",
+    body: JSON.stringify({ course_ids: courseIds, target_term_id: targetTermId }),
+  });
+}
+
+// ----------------------------------------------------
+// Terms (فصل‌ها) API — the academic calendar.
+// ----------------------------------------------------
+export async function apiGetTerms() {
+  return await fetchFromAPI("/terms/");
+}
+
+export async function apiGetCurrentTerm() {
+  return await fetchFromAPI("/terms/current");
+}
+
+export async function apiCreateTerm(data) {
+  return await fetchFromAPI("/terms/", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function apiUpdateTerm(termId, data) {
+  return await fetchFromAPI(`/terms/${termId}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export async function apiActivateTerm(termId) {
+  return await fetchFromAPI(`/terms/${termId}/activate`, { method: "POST" });
+}
+
+export async function apiDeleteTerm(termId) {
+  return await fetchFromAPI(`/terms/${termId}`, { method: "DELETE" });
 }
 
 // ----------------------------------------------------

@@ -1,0 +1,87 @@
+# Continuous integration. The production server (deploy/auto-update.sh) deploys
+# a commit on main only after this workflow has succeeded for it, so keep the
+# file name `ci.yml`.
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (import check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Byte-compile
+        run: python -m compileall -q backend/app backend/tests
+      - name: Import the application
+        working-directory: backend
+        env:
+          ENVIRONMENT: test
+        run: python -c "import app.main; print('app imports cleanly')"
+
+  frontend:
+    name: Frontend (production build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install --legacy-peer-deps
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  e2e:
+    name: Full stack (docker compose + API smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create a throwaway .env
+        run: |
+          {
+            echo "SECRET_KEY=$(openssl rand -hex 40)"
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "FIRST_SUPERUSER_EMAIL=admin@aut.ac.ir"
+            echo "FIRST_SUPERUSER_PASSWORD=$(openssl rand -hex 12)"
+            echo "MINIO_ROOT_USER=minioadmin"
+            echo "MINIO_ROOT_PASSWORD=$(openssl rand -hex 16)"
+          } > .env
+
+      - name: Build and start the stack
+        run: docker compose up -d --build --wait --wait-timeout 600
+
+      - name: API smoke test
+        run: python3 backend/tests/e2e_smoke.py
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --tail 200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -22,6 +22,13 @@ class Course(Base):
     instructor_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("instructors.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    source_course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("courses.id", ondelete="SET NULL"), nullable=True, index=True,
+        doc="دوره‌ای که این دوره از روی آن در ترم جدید وارد (کپی) شده است"
+    )
+    image_url: Mapped[str] = mapped_column(
+        String(255), nullable=True, doc="تصویر شاخص دوره (مسیر در پوشهٔ public فرانت‌اند)"
+    )
     title_fa: Mapped[str] = mapped_column(
         String(200), nullable=False, doc="نام فارسی درس"
     )
@@ -102,7 +109,7 @@ class Course(Base):
     )
 
     # Relationships
-    term = relationship("Term", back_populates="courses")
+    term = relationship("Term", back_populates="courses", lazy="selectin")
     instructor = relationship("Instructor", back_populates="courses")
     topics = relationship("SyllabusTopic", back_populates="course", cascade="all, delete-orphan", order_by="SyllabusTopic.order_index")
     videos = relationship("CourseVideo", back_populates="course", cascade="all, delete-orphan", order_by="CourseVideo.order_index")

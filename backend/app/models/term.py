@@ -30,8 +30,24 @@ class Term(Base):
     end_date: Mapped[date] = mapped_column(
         Date, nullable=True, doc="تاریخ پایان ترم و ارزیابی"
     )
+    makeup_start: Mapped[date] = mapped_column(
+        Date, nullable=True, doc="شروع جلسات رفع اشکال و جبرانی"
+    )
+    makeup_end: Mapped[date] = mapped_column(
+        Date, nullable=True, doc="پایان جلسات رفع اشکال و جبرانی"
+    )
+    exam_start: Mapped[date] = mapped_column(
+        Date, nullable=True, doc="شروع آزمون و ارزیابی پایانی"
+    )
+    exam_end: Mapped[date] = mapped_column(
+        Date, nullable=True, doc="پایان آزمون و ارزیابی پایانی"
+    )
+    certificate_date: Mapped[date] = mapped_column(
+        Date, nullable=True, doc="تاریخ صدور گواهینامه‌ها"
+    )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False, doc="آیا ترم جاری فعال است؟"
+        Boolean, default=False, nullable=False,
+        doc="آیا این ترم جاری است؟ (ثبت‌نام فقط در ترم جاری باز است)"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False

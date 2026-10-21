@@ -1,5 +1,18 @@
+# Fixed project name: volumes keep the same names (ce_school_*) wherever the
+# repository is checked out, so a redeploy or a new clone never loses data.
+name: ce_school
+
+# Keep container logs from filling the disk on a long-running server.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   frontend:
+    image: ce-school/frontend:latest
+    logging: *default-logging
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -19,6 +32,8 @@ services:
         condition: service_healthy
 
   backend:
+    image: ce-school/backend:latest
+    logging: *default-logging
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -42,6 +57,7 @@ services:
       - "S3_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}"
       - "S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:?missing MINIO_ROOT_PASSWORD, see .env.example}"
       - S3_BUCKET=course-videos
+      - "EXTRA_CORS_ORIGINS=${EXTRA_CORS_ORIGINS:-}"
     restart: unless-stopped
     container_name: ce-school-backend
     depends_on:
@@ -54,6 +70,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    logging: *default-logging
     container_name: ce-school-postgres
     restart: unless-stopped
     environment:
@@ -72,6 +89,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    logging: *default-logging
     container_name: ce-school-redis
     restart: unless-stopped
     ports:
@@ -81,6 +99,7 @@ services:
 
   minio:
     image: quay.io/minio/minio:latest
+    logging: *default-logging
     container_name: ce-school-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -89,7 +108,8 @@ services:
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?missing MINIO_ROOT_PASSWORD, see .env.example}"
     ports:
       - "9000:9000"
-      - "9001:9001"
+      # Admin console: local only. Reach it through an SSH tunnel if needed.
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useCurrentTerm } from "@/lib/terms";
 import {
   BookOpenIcon,
   UsersIcon,
@@ -22,6 +23,7 @@ import {
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const { term: currentTerm, loading: termLoading } = useCurrentTerm();
 
   const menuItems = [
     {
@@ -147,17 +149,29 @@ const Sidebar = () => {
             })}
           </nav>
 
-          {/* Sidebar Footer Badge */}
+          {/* Sidebar Footer Badge: the current term, straight from the academic calendar */}
           <div className="pt-4 mt-4 border-t border-slate-800/80">
-            <div className="bg-slate-800/60 rounded-xl p-3 border border-slate-700/50 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] text-slate-400">ترم فعال سامانه</p>
-                <p className="text-xs font-bold text-slate-200">پاییز ۱۴۰۴</p>
+            <Link
+              href="/calendar"
+              onClick={() => setIsOpen(false)}
+              className="bg-slate-800/60 hover:bg-slate-800 rounded-xl p-3 border border-slate-700/50 flex items-center justify-between gap-2 transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-[11px] text-slate-400">ترم جاری</p>
+                <p className="text-xs font-bold text-slate-200 truncate">
+                  {currentTerm
+                    ? currentTerm.title.replace(/^ترم\s+/, "")
+                    : termLoading
+                    ? "…"
+                    : "تعیین نشده"}
+                </p>
               </div>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                ثبت‌نام فعال
-              </span>
-            </div>
+              {currentTerm && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                  ثبت‌نام فعال
+                </span>
+              )}
+            </Link>
           </div>
         </div>
       </aside>

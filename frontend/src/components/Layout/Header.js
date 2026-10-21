@@ -16,6 +16,7 @@ const Header = () => {
   const pathname = usePathname();
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(null);
+  const [courseLabel, setCourseLabel] = useState("");
   const { theme, toggleTheme, isDark, isMounted: themeMounted } = useTheme();
 
   useEffect(() => {
@@ -30,102 +31,77 @@ const Header = () => {
     };
   }, [pathname]);
 
+  // The course page announces its title so the trail names the real course
+  // instead of a hard-coded list that goes stale as courses are added.
+  useEffect(() => {
+    setCourseLabel("");
+    const onLabel = (e) => setCourseLabel(e.detail || "");
+    window.addEventListener("aut_breadcrumb", onLabel);
+    return () => window.removeEventListener("aut_breadcrumb", onLabel);
+  }, [pathname]);
+
   const handleLogout = () => {
     clearAuthSession();
     setCurrentUser(null);
     router.push("/courses");
   };
 
-  const getBreadcrumb = () => {
-    const routes = {
-      "/": "خانه",
-      "/courses": "دوره‌های آموزشی",
-      "/courses/1": "یادگیری ماشین",
-      "/courses/2": "آزمون و کیفیت نرم‌افزار",
-      "/courses/3": "برنامه‌نویسی شی‌گرا (جاوا)",
-      "/courses/4": "مهندسی نرم‌افزار",
-      "/courses/5": "کارآفرینی",
-      "/courses/6": "اصول و الگوها در مهندسی نرم‌افزار",
-      "/courses/7": "اصول رایانش ابری",
-      "/instructors": "اساتید دوره",
-      "/register": "اخذ و ثبت‌نام دوره",
-      "/calendar": "تقویم آموزشی",
-      "/micromaster": "بسته‌های میکرومستر",
-      "/syllabus": "سرفصل دوره‌ها",
-      "/info": "اطلاعات تکمیلی",
-      "/terms": "شرایط و مقررات",
-      "/about": "درباره مدرسه",
-      "/contact": "تماس با ما",
-      "/login": "ورود و ثبت‌نام حساب",
-      "/dashboard": "پرتال دانشجو",
-      "/admin": "پنل مدیریت آموزش",
-    };
-
-    if (routes[pathname]) {
-      return {
-        currentPage: routes[pathname],
-        showHome: pathname !== "/courses",
-      };
-    }
-
-    if (pathname.startsWith("/courses/")) {
-      const courseId = pathname.split("/")[2];
-      if (courseId && routes[`/courses/${courseId}`]) {
-        return {
-          currentPage: routes[`/courses/${courseId}`],
-          showHome: true,
-          parentPage: "دوره‌های آموزشی",
-          parentPath: "/courses",
-        };
-      }
-      return {
-        currentPage: "جزئیات دوره",
-        showHome: true,
-        parentPage: "دوره‌های آموزشی",
-        parentPath: "/courses",
-      };
-    }
-
-    return {
-      currentPage: "دوره‌های آموزشی",
-      showHome: true,
-    };
+  // There is no home page ("/" redirects to the course catalogue), so the trail
+  // never starts at a "home": a section is one crumb, and a course page hangs
+  // under the catalogue it belongs to.
+  const SECTION_TITLES = {
+    "/courses": "دوره‌های آموزشی",
+    "/instructors": "اساتید دوره",
+    "/register": "اخذ و ثبت‌نام دوره",
+    "/calendar": "تقویم آموزشی",
+    "/micromaster": "بسته‌های میکرومستر",
+    "/syllabus": "سرفصل دوره‌ها",
+    "/info": "اطلاعات تکمیلی",
+    "/terms": "شرایط و مقررات",
+    "/about": "درباره مدرسه",
+    "/contact": "تماس با ما",
+    "/login": "ورود و ثبت‌نام حساب",
+    "/dashboard": "پرتال دانشجو",
+    "/admin": "پنل مدیریت آموزش",
   };
 
-  const breadcrumb = getBreadcrumb();
+  const getBreadcrumb = () => {
+    const path = pathname.replace(/\/+$/, "") || "/";
+
+    if (path.startsWith("/courses/")) {
+      return [
+        { label: "دوره‌های آموزشی", href: "/courses" },
+        { label: courseLabel || "جزئیات دوره" },
+      ];
+    }
+
+    return [{ label: SECTION_TITLES[path] || "دوره‌های آموزشی" }];
+  };
+
+  const crumbs = getBreadcrumb();
 
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
       <div className="px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
         {/* Breadcrumb Navigation */}
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500 overflow-x-auto no-scrollbar">
-          {breadcrumb.showHome && (
-            <>
-              <Link
-                href="/courses"
-                className="hover:text-blue-600 font-medium transition-colors shrink-0"
-              >
-                خانه
-              </Link>
-              <ChevronLeftIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </>
-          )}
-
-          {breadcrumb.parentPage && (
-            <>
-              <Link
-                href={breadcrumb.parentPath}
-                className="hover:text-blue-600 font-medium transition-colors shrink-0"
-              >
-                {breadcrumb.parentPage}
-              </Link>
-              <ChevronLeftIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </>
-          )}
-
-          <span className="text-slate-900 font-semibold truncate shrink-0">
-            {breadcrumb.currentPage}
-          </span>
+          {crumbs.map((crumb, index) => {
+            const isLast = index === crumbs.length - 1;
+            return (
+              <span key={index} className="flex items-center gap-1.5 shrink-0">
+                {crumb.href && !isLast ? (
+                  <Link href={crumb.href} className="hover:text-blue-600 font-medium transition-colors">
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span className="text-slate-900 font-semibold truncate max-w-[60vw]" aria-current={isLast ? "page" : undefined}>
+                    {crumb.label}
+                  </span>
+                )}
+                {!isLast && <ChevronLeftIcon className="w-3.5 h-3.5 text-slate-400" />}
+              </span>
+            );
+          })}
         </nav>
 
         {/* Header Right Actions */}

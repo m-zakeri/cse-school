@@ -13,6 +13,12 @@ import {
   apiCreateCourse,
   apiUpdateCourse,
   apiDeleteCourse,
+  apiImportCourses,
+  apiGetTerms,
+  apiCreateTerm,
+  apiUpdateTerm,
+  apiActivateTerm,
+  apiDeleteTerm,
   apiGetInstructors,
   apiCreateInstructor,
   apiUpdateInstructor,
@@ -44,10 +50,14 @@ import {
 } from "@/lib/formatters";
 import CustomModal from "@/components/UI/CustomModal";
 import CourseVideoManager from "@/components/admin/CourseVideoManager";
+import JalaliDateInput from "@/components/UI/JalaliDateInput";
+import { announceTermChange, SEASONS } from "@/lib/terms";
+import { formatIsoShamsi, isoToJalali } from "@/lib/jalali";
 
 // Mirrors CourseCreate on the backend, so an admin can fill in every field the
 // API accepts rather than the handful the form used to expose.
 const EMPTY_COURSE = {
+  term_id: "",
   title_fa: "",
   title_en: "",
   instructor_id: "",
@@ -57,13 +67,13 @@ const EMPTY_COURSE = {
   units: "۳ واحد",
   level: "کارشناسی ارشد",
   course_level: "متوسط",
-  price: 2500000,
+  price: "",
   capacity: 30,
   prerequisites: "",
   corequisites: "",
   prerequisite_topics: "",
-  duration: "۱۰ هفته (۸ هفته کلاس ۲۴ ساعت – ۱۶ جلسه)",
-  delivery_method: "ترکیبی (کلاس‌های مجازی + ارزیابی پایانی حضوری)",
+  duration: "",
+  delivery_method: "",
   description: "",
   assignments_info: "",
   author: "",
@@ -75,6 +85,50 @@ const EMPTY_COURSE = {
   gradingText: "",
   referencesText: "",
 };
+
+// Calendar dates of a term, in the order they are filled in. Values are ISO dates
+// ("" = not set, null = the typed text is not a real date).
+const TERM_DATE_FIELDS = [
+  ["registration_start", "شروع ثبت‌نام"],
+  ["registration_end", "مهلت نهایی ثبت‌نام"],
+  ["start_date", "آغاز کلاس‌ها"],
+  ["end_date", "پایان ترم"],
+  ["makeup_start", "شروع رفع اشکال و جبرانی"],
+  ["makeup_end", "پایان رفع اشکال و جبرانی"],
+  ["exam_start", "شروع آزمون پایانی"],
+  ["exam_end", "پایان آزمون پایانی"],
+  ["certificate_date", "صدور گواهینامه‌ها"],
+];
+
+function currentJalaliYear() {
+  return isoToJalali(new Date().toISOString().slice(0, 10))?.jy || 1405;
+}
+
+/** Title and code follow the chosen year/season until the admin edits them by hand. */
+function withTermNames(form) {
+  const next = { ...form };
+  const season = SEASONS.find((x) => x.value === next.season) || SEASONS[0];
+  const year = toEnglishDigits(String(next.year || "")).trim();
+  if (!next.titleEdited) next.title = `ترم ${season.value} ${toPersianDigits(year)}`;
+  if (!next.codeEdited) next.code = `${year}-${season.index}`;
+  return next;
+}
+
+function emptyTermForm() {
+  const blank = {
+    year: String(currentJalaliYear()),
+    season: SEASONS[0].value,
+    title: "",
+    code: "",
+    titleEdited: false,
+    codeEdited: false,
+    is_active: false,
+  };
+  TERM_DATE_FIELDS.forEach(([key]) => {
+    blank[key] = "";
+  });
+  return withTermNames(blank);
+}
 
 const EMPTY_INSTRUCTOR = {
   name: "",
@@ -207,6 +261,23 @@ export default function AdminDashboard() {
   // New / Edit Course Form State
   const [newCourse, setNewCourse] = useState({ ...EMPTY_COURSE });
 
+  // Terms (فصل‌ها): the admin works inside one term at a time, or across all of them.
+  const [terms, setTerms] = useState([]);
+  const [adminTermId, setAdminTermId] = useState(""); // "" = not chosen yet, "ALL", or a term id
+  const [termForm, setTermForm] = useState(emptyTermForm());
+  const [termFormOpen, setTermFormOpen] = useState(false);
+  const [editingTermId, setEditingTermId] = useState(null);
+  const [termError, setTermError] = useState("");
+  const [isSavingTerm, setIsSavingTerm] = useState(false);
+
+  // "Repeat courses in another term" panel
+  const [importOpen, setImportOpen] = useState(false);
+  const [importSourceId, setImportSourceId] = useState("");
+  const [importTargetId, setImportTargetId] = useState("");
+  const [importSelected, setImportSelected] = useState({});
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+
   const notifyError = (err, fallback) => {
     setPanelSuccess("");
     setPanelError(err?.message || fallback);
@@ -220,11 +291,12 @@ export default function AdminDashboard() {
   const loadData = async () => {
     // Everything below is authoritative backend state. A failure is surfaced
     // rather than silently replaced with sample data.
-    const [enr, courseList, instructorList, certList] = await Promise.allSettled([
+    const [enr, courseList, instructorList, certList, termList] = await Promise.allSettled([
       apiGetAllEnrollmentsAdmin(),
       apiGetCoursesAdmin(),
       apiGetInstructors(),
       apiGetCertificatesAdmin(),
+      apiGetTerms(),
     ]);
 
     const failures = [];
@@ -255,6 +327,17 @@ export default function AdminDashboard() {
     } else {
       setCertificates([]);
       failures.push("گواهینامه‌ها");
+    }
+
+    if (termList.status === "fulfilled") {
+      const list = Array.isArray(termList.value) ? termList.value : [];
+      setTerms(list);
+      // First load: work inside the current term, which is what the admin deals with daily.
+      setAdminTermId((prev) => prev || (list.find((t) => t.is_active)?.id ?? "ALL"));
+    } else {
+      setTerms([]);
+      setAdminTermId((prev) => prev || "ALL");
+      failures.push("فهرست ترم‌ها");
     }
 
     if (failures.length > 0) {
@@ -493,13 +576,17 @@ export default function AdminDashboard() {
       units: newCourse.units,
       level: newCourse.level,
       course_level: newCourse.course_level,
-      price: Number(newCourse.price),
-      capacity: Number(newCourse.capacity),
+      term_id: newCourse.term_id || undefined,
+      price: Number(newCourse.price) || 0,
+      capacity: Number(newCourse.capacity) || 30,
       prerequisites: newCourse.prerequisites.trim() || "ندارد",
       corequisites: newCourse.corequisites.trim() || null,
       prerequisite_topics: newCourse.prerequisite_topics.trim() || null,
       duration: newCourse.duration.trim() || null,
-      delivery_method: newCourse.delivery_method.trim(),
+      // Left empty, the server applies its standard delivery description.
+      ...(newCourse.delivery_method.trim()
+        ? { delivery_method: newCourse.delivery_method.trim() }
+        : {}),
       description: newCourse.description.trim(),
       assignments_info: newCourse.assignments_info.trim() || null,
       author: newCourse.author.trim() || null,
@@ -531,11 +618,12 @@ export default function AdminDashboard() {
         setAllCourses((prev) => [created, ...prev]);
         setCourseSuccessMsg(`دوره «${created.title_fa}» با موفقیت در سامانه تعریف و ثبت شد.`);
       }
+      refreshTerms();
 
       // A newly named instructor may have just been created server-side.
       apiGetInstructors().then(setInstructors).catch(() => {});
 
-      setNewCourse({ ...EMPTY_COURSE });
+      setNewCourse(blankCourse());
       setEditingCourseId(null);
 
       setTimeout(() => {
@@ -566,6 +654,7 @@ export default function AdminDashboard() {
 
     setEditingCourseId(course.id);
     setNewCourse({
+      term_id: course.term?.id || "",
       title_fa: course.title_fa || "",
       title_en: course.title_en || "",
       instructor_id: course.instructor?.id || "",
@@ -581,7 +670,7 @@ export default function AdminDashboard() {
       corequisites: course.corequisites || "",
       prerequisite_topics: course.prerequisite_topics || "",
       duration: course.duration || "",
-      delivery_method: course.delivery_method || EMPTY_COURSE.delivery_method,
+      delivery_method: course.delivery_method || "",
       description: course.description || "",
       assignments_info: course.assignments_info || "",
       author: course.author || "",
@@ -640,6 +729,194 @@ export default function AdminDashboard() {
         }
       },
     });
+  };
+
+  const refreshTerms = async () => {
+    try {
+      setTerms(await apiGetTerms());
+    } catch {
+      // The list stays as it was; the next full load reports a real outage.
+    }
+  };
+
+  const refreshCourses = async () => {
+    try {
+      setAllCourses(await apiGetCoursesAdmin());
+    } catch (err) {
+      notifyError(err, "به‌روزرسانی فهرست دوره‌ها ممکن نشد.");
+    }
+  };
+
+  const currentTerm = terms.find((t) => t.is_active) || null;
+  const termById = (id) => terms.find((t) => t.id === id) || null;
+
+  // A new course starts in the term the admin is looking at, else the current one.
+  const blankCourse = () => ({
+    ...EMPTY_COURSE,
+    term_id: adminTermId && adminTermId !== "ALL" ? adminTermId : currentTerm?.id || "",
+  });
+
+  const openNewCourseForm = () => {
+    setEditingCourseId(null);
+    setCourseSuccessMsg("");
+    setCourseErrorMsg("");
+    setNewCourse(blankCourse());
+    setActiveTab("NEW_COURSE");
+  };
+
+  const openNewTermForm = () => {
+    setEditingTermId(null);
+    setTermError("");
+    setTermForm(emptyTermForm());
+    setTermFormOpen(true);
+  };
+
+  const handleEditTerm = (term) => {
+    const season = SEASONS.find((x) => term.title.includes(x.value));
+    const yearMatch = toEnglishDigits(term.title).match(/\d{4}/);
+    const form = {
+      year: yearMatch ? yearMatch[0] : String(currentJalaliYear()),
+      season: season ? season.value : SEASONS[0].value,
+      title: term.title,
+      code: term.code,
+      titleEdited: true,
+      codeEdited: true,
+      is_active: term.is_active,
+    };
+    TERM_DATE_FIELDS.forEach(([key]) => {
+      form[key] = term[key] || "";
+    });
+    setEditingTermId(term.id);
+    setTermError("");
+    setTermForm(form);
+    setTermFormOpen(true);
+  };
+
+  const changeTermForm = (patch) => setTermForm((prev) => withTermNames({ ...prev, ...patch }));
+
+  const handleSaveTerm = async (e) => {
+    e.preventDefault();
+    setTermError("");
+
+    const badDate = TERM_DATE_FIELDS.find(([key]) => termForm[key] === null);
+    if (badDate) {
+      setTermError(`تاریخ «${badDate[1]}» معتبر نیست؛ قالب درست مثل «۱۴۰۵/۰۷/۱۰» است.`);
+      return;
+    }
+
+    const payload = { title: termForm.title.trim(), code: termForm.code.trim() };
+    TERM_DATE_FIELDS.forEach(([key]) => {
+      payload[key] = termForm[key] || null;
+    });
+
+    setIsSavingTerm(true);
+    try {
+      if (editingTermId) {
+        await apiUpdateTerm(editingTermId, payload);
+        notifySuccess(`ترم «${payload.title}» به‌روزرسانی شد.`);
+      } else {
+        const created = await apiCreateTerm({ ...payload, is_active: termForm.is_active });
+        notifySuccess(`ترم «${created.title}» تعریف شد.`);
+      }
+      await refreshTerms();
+      announceTermChange();
+      setTermFormOpen(false);
+      setEditingTermId(null);
+    } catch (err) {
+      setTermError(err.message || "ذخیرهٔ ترم انجام نشد.");
+    } finally {
+      setIsSavingTerm(false);
+    }
+  };
+
+  const handleActivateTerm = (term) => {
+    setModalConfig({
+      isOpen: true,
+      type: "warning",
+      title: "تعیین ترم جاری",
+      message: `«${term.title}» ترم جاری شود؟ از این لحظه ثبت‌نام فقط در دوره‌های همین ترم باز است و ثبت‌نام ترم‌های دیگر بسته می‌شود.`,
+      confirmText: "بله، ترم جاری شود",
+      cancelText: "انصراف",
+      isConfirm: true,
+      onConfirm: async () => {
+        try {
+          await apiActivateTerm(term.id);
+          await refreshTerms();
+          announceTermChange();
+          notifySuccess(`«${term.title}» اکنون ترم جاری است.`);
+        } catch (err) {
+          notifyError(err, "تغییر ترم جاری انجام نشد.");
+        }
+      },
+    });
+  };
+
+  const handleDeleteTerm = (term) => {
+    setModalConfig({
+      isOpen: true,
+      type: "danger",
+      title: "حذف ترم",
+      message: `ترم «${term.title}» حذف شود؟ فقط ترمی که هیچ دوره و ثبت‌نامی ندارد قابل حذف است.`,
+      confirmText: "بله، حذف ترم",
+      cancelText: "انصراف",
+      isConfirm: true,
+      onConfirm: async () => {
+        try {
+          await apiDeleteTerm(term.id);
+          if (adminTermId === term.id) setAdminTermId("ALL");
+          await refreshTerms();
+          announceTermChange();
+          notifySuccess("ترم حذف شد.");
+        } catch (err) {
+          notifyError(err, "حذف ترم انجام نشد.");
+        }
+      },
+    });
+  };
+
+  // --- Repeat courses in another term
+  const openImportPanel = (fromCourse = null) => {
+    const sourceId =
+      fromCourse?.term?.id ||
+      (adminTermId && adminTermId !== "ALL" ? adminTermId : "") ||
+      terms.find((t) => !t.is_active)?.id ||
+      terms[0]?.id ||
+      "";
+    const targetId =
+      terms.find((t) => t.id !== sourceId && t.is_active)?.id ||
+      terms.find((t) => t.id !== sourceId)?.id ||
+      "";
+    setImportSourceId(sourceId);
+    setImportTargetId(targetId);
+    setImportSelected(fromCourse ? { [fromCourse.id]: true } : {});
+    setImportResult(null);
+    setImportOpen(true);
+    setActiveTab("COURSES");
+  };
+
+  const importSourceCourses = allCourses.filter((c) => c.term?.id === importSourceId);
+  const importChosenIds = importSourceCourses.filter((c) => importSelected[c.id]).map((c) => c.id);
+
+  const handleImportCourses = async () => {
+    if (!importTargetId || importTargetId === importSourceId) {
+      notifyError(null, "ترم مبدأ و مقصد باید متفاوت باشند.");
+      return;
+    }
+    setIsImporting(true);
+    setImportResult(null);
+    try {
+      const result = await apiImportCourses(importChosenIds, importTargetId);
+      setImportResult(result);
+      await Promise.all([refreshCourses(), refreshTerms()]);
+      if (result.created.length > 0) {
+        setAdminTermId(importTargetId);
+        setImportSelected({});
+      }
+    } catch (err) {
+      notifyError(err, "تکرار دوره‌ها انجام نشد.");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleLogout = () => {
@@ -734,11 +1011,28 @@ export default function AdminDashboard() {
     window.print();
   };
 
+  // Everything below the term selector is limited to the chosen term.
+  const inScope = (termId) => !adminTermId || adminTermId === "ALL" || termId === adminTermId;
+  const scopedCourses = useMemo(
+    () => allCourses.filter((c) => inScope(c.term?.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allCourses, adminTermId]
+  );
+  const scopedEnrollments = useMemo(
+    () => enrollments.filter((e) => inScope(e.term_id || e.course?.term?.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [enrollments, adminTermId]
+  );
+  const scopeTitle =
+    !adminTermId || adminTermId === "ALL"
+      ? "همه ترم‌ها"
+      : termById(adminTermId)?.title || "";
+
   const filteredEnrollments = useMemo(() => {
     const cleanQuery = searchQuery.trim().toLowerCase();
     const cleanDigitsQuery = toEnglishDigits(cleanQuery);
 
-    return enrollments.filter((item) => {
+    return scopedEnrollments.filter((item) => {
       const matchesStatus =
         statusFilter === "ALL" || item.status === statusFilter;
 
@@ -797,16 +1091,16 @@ export default function AdminDashboard() {
 
       return matchesSearch && matchesStatus && matchesCourse;
     });
-  }, [enrollments, searchQuery, statusFilter, courseFilter]);
+  }, [scopedEnrollments, searchQuery, statusFilter, courseFilter]);
 
   // Analytics Computation with Strict 1-to-1 Course Matching
   const analyticsData = useMemo(() => {
-    const courseBreakdown = allCourses.map((c) => {
+    const courseBreakdown = scopedCourses.map((c) => {
       const cNum = Number(c.course_number || c.id) || null;
       const cIdStr = String(c.id || "").toLowerCase();
       const cTitle = (c.title_fa || c.title || "").trim();
 
-      const matchingEnrollments = enrollments.filter((enr) => {
+      const matchingEnrollments = scopedEnrollments.filter((enr) => {
         const enrCourse = enr.course || {};
         const enrNum = Number(enrCourse.course_number) || null;
         const enrId = String(enrCourse.id || enr.course_id || "").toLowerCase();
@@ -838,10 +1132,10 @@ export default function AdminDashboard() {
 
     return {
       coursesBreakdown: courseBreakdown,
-      totalEnrollments: enrollments.length,
-      completedEnrollments: enrollments.filter((e) => e.status === "COMPLETED").length,
+      totalEnrollments: scopedEnrollments.length,
+      completedEnrollments: scopedEnrollments.filter((e) => e.status === "COMPLETED").length,
     };
-  }, [enrollments, allCourses]);
+  }, [scopedEnrollments, scopedCourses]);
 
   if (!isMounted) {
     return (
@@ -979,6 +1273,27 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* Term selector: scopes the numbers, enrollments and courses below */}
+      <div className="flex flex-wrap items-center gap-3 mb-6 print:hidden bg-white border border-slate-200/80 rounded-2xl px-4 py-3 shadow-sm">
+        <span className="text-xs font-bold text-slate-700">ترم مورد بررسی:</span>
+        <select
+          value={adminTermId || "ALL"}
+          onChange={(e) => setAdminTermId(e.target.value)}
+          className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 font-semibold outline-hidden focus:ring-2 focus:ring-blue-600"
+        >
+          <option value="ALL">همه ترم‌ها</option>
+          {terms.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.title}
+              {t.is_active ? " (جاری)" : ""}
+            </option>
+          ))}
+        </select>
+        <span className="text-[11px] text-slate-400">
+          آمار، پرونده‌های ثبت‌نام و فهرست دوره‌ها فقط برای ترم انتخاب‌شده نمایش داده می‌شود.
+        </span>
+      </div>
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8 print:hidden">
         <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
@@ -989,7 +1304,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-xs text-slate-500">کل پرونده‌های ثبت‌نام</p>
               <p className="text-lg font-extrabold text-slate-900">
-                {toPersianDigits(enrollments.length)} دانشجو
+                {toPersianDigits(scopedEnrollments.length)} دانشجو
               </p>
             </div>
           </div>
@@ -1004,7 +1319,7 @@ export default function AdminDashboard() {
               <p className="text-xs text-slate-500">ثبت‌نام‌های قطعی</p>
               <p className="text-lg font-extrabold text-emerald-600">
                 {toPersianDigits(
-                  enrollments.filter(
+                  scopedEnrollments.filter(
                     (e) => e.status === "REGISTERED" || e.status === "COMPLETED"
                   ).length
                 )} نفر
@@ -1035,7 +1350,7 @@ export default function AdminDashboard() {
             <div>
               <p className="text-xs text-slate-500">دوره‌های فعال سامانه</p>
               <p className="text-lg font-extrabold text-purple-600">
-                {toPersianDigits(allCourses.length)} عنوان دوره
+                {toPersianDigits(scopedCourses.filter((c) => c.is_active !== false).length)} عنوان دوره
               </p>
             </div>
           </div>
@@ -1053,7 +1368,7 @@ export default function AdminDashboard() {
           }`}
         >
           <UsersIcon className="w-4 h-4" />
-          <span>پرونده‌های ثبت‌نام ({toPersianDigits(enrollments.length)})</span>
+          <span>پرونده‌های ثبت‌نام ({toPersianDigits(scopedEnrollments.length)})</span>
         </button>
 
         <button
@@ -1077,7 +1392,19 @@ export default function AdminDashboard() {
           }`}
         >
           <BookOpenIcon className="w-4 h-4" />
-          <span>لیست دوره‌ها ({toPersianDigits(allCourses.length)})</span>
+          <span>لیست دوره‌ها ({toPersianDigits(scopedCourses.length)})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("TERMS")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            activeTab === "TERMS"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+              : "bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50"
+          }`}
+        >
+          <ClockIcon className="w-4 h-4" />
+          <span>ترم‌ها و تقویم ({toPersianDigits(terms.length)})</span>
         </button>
 
         <button
@@ -1105,11 +1432,7 @@ export default function AdminDashboard() {
         </button>
 
         <button
-          onClick={() => {
-            setEditingCourseId(null);
-            setNewCourse({ ...EMPTY_COURSE });
-            setActiveTab("NEW_COURSE");
-          }}
+          onClick={openNewCourseForm}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
             activeTab === "NEW_COURSE"
               ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
@@ -1127,7 +1450,7 @@ export default function AdminDashboard() {
           دانشگاه صنعتی امیرکبیر — دانشکده مهندسی کامپیوتر
         </h2>
         <h3 className="text-sm font-bold text-slate-700 mt-1">
-          لیست رسمی حضور و غیاب و ارزیابی دانشجویان — ترم پاییز ۱۴۰۴
+          لیست رسمی حضور و غیاب و ارزیابی دانشجویان — {scopeTitle}
         </h3>
         <p className="text-xs text-slate-500 mt-1">
           تاریخ گزارش: {new Date().toLocaleDateString("fa-IR")}
@@ -1160,7 +1483,7 @@ export default function AdminDashboard() {
                 className="py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 outline-hidden"
               >
                 <option value="ALL">همه دوره‌ها</option>
-                {allCourses.map((c) => (
+                {scopedCourses.map((c) => (
                   <option key={c.id} value={c.course_number ?? c.id}>
                     {c.title_fa || c.title}
                   </option>
@@ -1333,7 +1656,7 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm">
             <h2 className="text-base font-bold text-slate-900 mb-6 flex items-center gap-2">
               <AwardIcon className="w-5 h-5 text-blue-600" />
-              <span>توزیع ثبت‌نام و ظرفیت دوره‌های آموزشی ترم پاییز ۱۴۰۴</span>
+              <span>توزیع ثبت‌نام و ظرفیت دوره‌های آموزشی — {scopeTitle}</span>
             </h2>
 
             <div className="space-y-5">
@@ -1382,81 +1705,457 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* TAB 3: Courses Management */}
-      {activeTab === "COURSES" && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm mb-12">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <BookOpenIcon className="w-5 h-5 text-blue-600" />
-              <span>فهرست دوره‌های آموزشی تعریف‌شده</span>
-            </h2>
-            <button
-              onClick={() => setActiveTab("NEW_COURSE")}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-xs"
-            >
-              + تعریف دوره جدید
-            </button>
+      {/* TAB: Terms (فصل‌ها) and the academic calendar */}
+      {activeTab === "TERMS" && (
+        <div className="space-y-6 mb-12">
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <ClockIcon className="w-5 h-5 text-blue-600" />
+                <span>ترم‌ها (فصل‌ها) و تقویم آموزشی</span>
+              </h2>
+              <button
+                onClick={openNewTermForm}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-xs"
+              >
+                + تعریف ترم جدید
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-6">
+              هر دوره به یک ترم تعلق دارد. ثبت‌نام فقط برای دوره‌های «ترم جاری» باز است؛ تاریخ‌هایی که اینجا
+              وارد می‌شود در صفحهٔ تقویم آموزشی نمایش داده می‌شود.
+            </p>
+
+            {terms.length === 0 ? (
+              <p className="text-sm text-slate-500 py-8 text-center">هنوز ترمی تعریف نشده است.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {terms.map((t) => (
+                  <div
+                    key={t.id}
+                    className={`rounded-2xl p-5 border flex flex-col justify-between gap-4 ${
+                      t.is_active ? "bg-emerald-50/60 border-emerald-200" : "bg-slate-50 border-slate-200/80"
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-bold text-slate-900">{t.title}</h3>
+                        <span className="text-[11px] text-slate-400 font-mono">{t.code}</span>
+                      </div>
+                      {t.is_active ? (
+                        <span className="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-md">
+                          ترم جاری — ثبت‌نام باز
+                        </span>
+                      ) : (
+                        <span className="inline-block bg-slate-200 text-slate-600 text-[11px] font-semibold px-2 py-0.5 rounded-md">
+                          ثبت‌نام بسته
+                        </span>
+                      )}
+                      <div className="text-xs text-slate-600 space-y-1 pt-1">
+                        <p>{toPersianDigits(t.course_count)} دوره</p>
+                        {t.registration_start && (
+                          <p>شروع ثبت‌نام: {formatIsoShamsi(t.registration_start)}</p>
+                        )}
+                        {t.start_date && <p>آغاز کلاس‌ها: {formatIsoShamsi(t.start_date)}</p>}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-200/80">
+                      {!t.is_active && (
+                        <button
+                          onClick={() => handleActivateTerm(t)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                        >
+                          ترم جاری شود
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setAdminTermId(t.id);
+                          setActiveTab("COURSES");
+                        }}
+                        className="bg-white hover:bg-slate-100 text-slate-700 py-2 px-3 rounded-xl text-xs font-semibold border border-slate-200 transition-colors"
+                      >
+                        دوره‌ها
+                      </button>
+                      <button
+                        onClick={() => handleEditTerm(t)}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        ویرایش
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTerm(t)}
+                        className="bg-red-50 hover:bg-red-100 text-red-600 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {allCourses.map((c) => (
-              <div
-                key={c.id}
-                className="bg-slate-50 rounded-2xl p-5 border border-slate-200/80 flex flex-col justify-between"
-              >
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between items-center text-[11px]">
-                    <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-md">
-                      {c.units} • {c.level}
-                    </span>
-                    <span className="text-slate-500 font-mono">
-                      #{toPersianDigits(c.course_number || c.id)}
-                    </span>
-                  </div>
-                  {c.is_active === false && (
-                    <span className="inline-block bg-amber-100 text-amber-800 text-[11px] font-bold px-2 py-0.5 rounded-md">
-                      غیرفعال — برای دانشجویان نمایش داده نمی‌شود
-                    </span>
-                  )}
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {c.title_fa || c.title}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    مدرس: {getInstructorName(c)}
-                  </p>
-                  <p className="text-xs font-bold text-blue-900">
-                    {formatPriceToman(c.price)}
-                  </p>
-                </div>
+          {termFormOpen && (
+            <form
+              onSubmit={handleSaveTerm}
+              className="bg-white rounded-3xl border border-blue-200 p-6 sm:p-8 shadow-sm max-w-3xl space-y-5 text-xs"
+            >
+              <h3 className="text-base font-bold text-slate-900">
+                {editingTermId ? "ویرایش ترم" : "تعریف ترم جدید"}
+              </h3>
 
-                <div className="flex gap-2 pt-3 border-t border-slate-200">
-                  <Link
-                    href={`/courses/${c.course_number || c.id}`}
-                    className="flex-1 bg-white hover:bg-slate-100 text-slate-700 text-center py-2 rounded-xl text-xs font-semibold border border-slate-200 transition-colors"
-                  >
-                    سرفصل
-                  </Link>
-                  <button
-                    onClick={() => handleEditCourse(c)}
-                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
-                  >
-                    ویرایش
-                  </button>
-                  <button
-                    onClick={() => handleToggleCourseActive(c)}
-                    className="bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
-                  >
-                    {c.is_active === false ? "فعال‌سازی" : "غیرفعال"}
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCourse(c.id)}
-                    className="bg-red-50 hover:bg-red-100 text-red-600 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
-                  >
-                    حذف
-                  </button>
+              {termError && (
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800">
+                  {termError}
+                </div>
+              )}
+
+              {!editingTermId && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">سال (شمسی)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      dir="ltr"
+                      required
+                      value={termForm.year}
+                      onChange={(e) =>
+                        changeTermForm({ year: toEnglishDigits(e.target.value).replace(/\D/g, "").slice(0, 4) })
+                      }
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden text-right"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">فصل</label>
+                    <select
+                      value={termForm.season}
+                      onChange={(e) => changeTermForm({ season: e.target.value })}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
+                    >
+                      {SEASONS.map((x) => (
+                        <option key={x.value} value={x.value}>
+                          {x.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">عنوان ترم *</label>
+                  <input
+                    type="text"
+                    required
+                    value={termForm.title}
+                    onChange={(e) => setTermForm({ ...termForm, title: e.target.value, titleEdited: true })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">کد یکتای ترم *</label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    required
+                    value={termForm.code}
+                    onChange={(e) => setTermForm({ ...termForm, code: e.target.value, codeEdited: true })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden text-right"
+                  />
                 </div>
               </div>
-            ))}
+
+              <div>
+                <p className="font-semibold text-slate-700 mb-2">
+                  تاریخ‌های تقویم آموزشی (شمسی، اختیاری)
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {TERM_DATE_FIELDS.map(([key, label]) => (
+                    <div key={key}>
+                      <label className="block text-slate-600 mb-1">{label}</label>
+                      <JalaliDateInput
+                        value={termForm[key]}
+                        onChange={(iso) => setTermForm((prev) => ({ ...prev, [key]: iso }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {!editingTermId && (
+                <label className="flex items-center gap-2 text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={termForm.is_active}
+                    onChange={(e) => setTermForm({ ...termForm, is_active: e.target.checked })}
+                  />
+                  <span>همین ترم، ترم جاری باشد (ثبت‌نام ترم قبلی بسته می‌شود)</span>
+                </label>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSavingTerm}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all disabled:opacity-50"
+                >
+                  {isSavingTerm ? "در حال ذخیره..." : editingTermId ? "ذخیرهٔ تغییرات ترم" : "ثبت ترم"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTermFormOpen(false)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-5 rounded-xl transition-all"
+                >
+                  انصراف
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: Courses Management */}
+      {activeTab === "COURSES" && (
+        <div className="space-y-6 mb-12">
+          {importOpen && (
+            <div className="bg-white rounded-3xl border border-blue-200 p-6 sm:p-8 shadow-sm">
+              <div className="flex items-start justify-between gap-4 mb-5">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">تکرار دوره‌ها در ترم دیگر</h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    دوره‌های یک ترم با همهٔ مشخصات و سرفصل‌ها در ترم مقصد کپی می‌شوند تا لازم نباشد دوباره تعریف
+                    شوند؛ بعد می‌توانید هر کدام را ویرایش کنید. ثبت‌نام‌ها و ویدیوهای ترم قبل منتقل نمی‌شوند.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setImportOpen(false)}
+                  className="text-slate-400 hover:text-slate-700 text-sm"
+                  aria-label="بستن"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">از ترم (مبدأ)</label>
+                  <select
+                    value={importSourceId}
+                    onChange={(e) => {
+                      setImportSourceId(e.target.value);
+                      setImportSelected({});
+                      setImportResult(null);
+                    }}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="" disabled>
+                      انتخاب ترم
+                    </option>
+                    {terms.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                        {t.is_active ? " (جاری)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">به ترم (مقصد)</label>
+                  <select
+                    value={importTargetId}
+                    onChange={(e) => setImportTargetId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-hidden focus:ring-2 focus:ring-blue-600"
+                  >
+                    <option value="" disabled>
+                      انتخاب ترم
+                    </option>
+                    {terms
+                      .filter((t) => t.id !== importSourceId)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                          {t.is_active ? " (جاری)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {importSourceCourses.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4">
+                  ترم مبدأ هنوز دوره‌ای ندارد. اگر ترمی که می‌خواهید از آن کپی کنید در فهرست نیست، از «ترم‌ها» آن
+                  را بررسی کنید.
+                </p>
+              ) : (
+                <div className="border border-slate-200 rounded-2xl divide-y divide-slate-100 mb-5 text-xs">
+                  <label className="flex items-center gap-3 px-4 py-2.5 bg-slate-50 rounded-t-2xl font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={importChosenIds.length === importSourceCourses.length}
+                      onChange={(e) =>
+                        setImportSelected(
+                          e.target.checked
+                            ? Object.fromEntries(importSourceCourses.map((c) => [c.id, true]))
+                            : {}
+                        )
+                      }
+                    />
+                    <span>انتخاب همهٔ دوره‌ها ({toPersianDigits(importSourceCourses.length)})</span>
+                  </label>
+                  {importSourceCourses.map((c) => (
+                    <label key={c.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(importSelected[c.id])}
+                        onChange={(e) => setImportSelected((prev) => ({ ...prev, [c.id]: e.target.checked }))}
+                      />
+                      <span className="font-semibold text-slate-800">{c.title_fa}</span>
+                      <span className="text-slate-400">{getInstructorName(c)}</span>
+                      {c.is_active === false && <span className="text-amber-700">(غیرفعال)</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {importResult && (
+                <div className="mb-5 space-y-2 text-xs">
+                  {importResult.created.length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+                      {toPersianDigits(importResult.created.length)} دوره در ترم مقصد ساخته شد:{" "}
+                      {importResult.created.map((c) => c.title_fa).join("، ")}
+                    </div>
+                  )}
+                  {importResult.skipped.map((sk) => (
+                    <div
+                      key={sk.course_id}
+                      className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800"
+                    >
+                      «{sk.title_fa}» وارد نشد: {sk.reason}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={handleImportCourses}
+                disabled={isImporting || importChosenIds.length === 0 || !importTargetId}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2.5 px-6 rounded-xl transition-all disabled:opacity-50"
+              >
+                {isImporting
+                  ? "در حال کپی..."
+                  : `کپی ${toPersianDigits(importChosenIds.length)} دوره در ${termById(importTargetId)?.title || "ترم مقصد"}`}
+              </button>
+            </div>
+          )}
+
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <BookOpenIcon className="w-5 h-5 text-blue-600" />
+                <span>دوره‌های {scopeTitle}</span>
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => openImportPanel()}
+                  disabled={terms.length < 2}
+                  title={terms.length < 2 ? "برای تکرار دوره حداقل دو ترم لازم است" : undefined}
+                  className="bg-white hover:bg-slate-50 text-blue-700 border border-blue-200 text-xs font-bold py-2 px-4 rounded-xl transition-all disabled:opacity-50"
+                >
+                  تکرار دوره‌ها از ترم دیگر
+                </button>
+                <button
+                  onClick={openNewCourseForm}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-xs"
+                >
+                  + تعریف دوره جدید
+                </button>
+              </div>
+            </div>
+
+            {scopedCourses.length === 0 && (
+              <p className="text-sm text-slate-500 py-10 text-center">
+                برای این ترم هنوز دوره‌ای تعریف نشده است. دوره جدید تعریف کنید یا دوره‌های ترم قبل را کپی کنید.
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {scopedCourses.map((c) => (
+                <div
+                  key={c.id}
+                  className="bg-slate-50 rounded-2xl p-5 border border-slate-200/80 flex flex-col justify-between"
+                >
+                  <div className="space-y-2 mb-4">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-md">
+                        {c.units} • {c.level}
+                      </span>
+                      <span className="text-slate-500 font-mono">
+                        #{toPersianDigits(c.course_number || c.id)}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {c.term && (
+                        <span className="inline-block bg-indigo-100 text-indigo-800 text-[11px] font-bold px-2 py-0.5 rounded-md">
+                          {c.term.title}
+                        </span>
+                      )}
+                      {c.is_active === false && (
+                        <span className="inline-block bg-amber-100 text-amber-800 text-[11px] font-bold px-2 py-0.5 rounded-md">
+                          غیرفعال — برای دانشجویان نمایش داده نمی‌شود
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      {c.title_fa || c.title}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      مدرس: {getInstructorName(c)}
+                    </p>
+                    <p className="text-xs font-bold text-blue-900">
+                      {formatPriceToman(c.price)}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-200">
+                    <Link
+                      href={`/courses/${c.course_number || c.id}`}
+                      className="flex-1 bg-white hover:bg-slate-100 text-slate-700 text-center py-2 rounded-xl text-xs font-semibold border border-slate-200 transition-colors"
+                    >
+                      سرفصل
+                    </Link>
+                    <button
+                      onClick={() => handleEditCourse(c)}
+                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                    >
+                      ویرایش
+                    </button>
+                    <button
+                      onClick={() => openImportPanel(c)}
+                      disabled={terms.length < 2}
+                      className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                    >
+                      تکرار در ترم دیگر
+                    </button>
+                    <button
+                      onClick={() => handleToggleCourseActive(c)}
+                      className="bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                    >
+                      {c.is_active === false ? "فعال‌سازی" : "غیرفعال"}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCourse(c.id)}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -1491,6 +2190,39 @@ export default function AdminDashboard() {
           )}
 
           <form onSubmit={handleCreateCourseSubmit} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                ترم (فصل) ارائهٔ دوره {terms.length > 0 ? "*" : ""}
+              </label>
+              {terms.length === 0 ? (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  هنوز ترمی تعریف نشده است. از تب «ترم‌ها و تقویم» یک ترم تعریف کنید.
+                </p>
+              ) : (
+                <select
+                  required
+                  value={newCourse.term_id}
+                  onChange={(e) => setNewCourse({ ...newCourse, term_id: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
+                >
+                  <option value="" disabled>
+                    انتخاب ترم
+                  </option>
+                  {terms.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                      {t.is_active ? " (جاری)" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {newCourse.term_id && termById(newCourse.term_id) && !termById(newCourse.term_id).is_active && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  این ترم هنوز جاری نیست؛ دوره تا زمان جاری شدن ترم برای ثبت‌نام باز نمی‌شود.
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
@@ -1503,7 +2235,7 @@ export default function AdminDashboard() {
                   onChange={(e) =>
                     setNewCourse({ ...newCourse, title_fa: e.target.value })
                   }
-                  placeholder="مثال: یادگیری عمیق و بینایی ماشین"
+                  placeholder="عنوان درس به فارسی"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1518,7 +2250,7 @@ export default function AdminDashboard() {
                   onChange={(e) =>
                     setNewCourse({ ...newCourse, title_en: e.target.value })
                   }
-                  placeholder="Deep Learning & Computer Vision"
+                  placeholder="Course title in English"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden dir-ltr text-right"
                 />
               </div>
@@ -1554,7 +2286,7 @@ export default function AdminDashboard() {
                         instructor_name: e.target.value,
                       })
                     }
-                    placeholder="نام استاد جدید، مثال: دکتر مرتضی ذاکری"
+                    placeholder="نام کامل استاد جدید"
                     className="w-full mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                   />
                 )}
@@ -1601,6 +2333,8 @@ export default function AdminDashboard() {
                 </label>
                 <input
                   type="number"
+                  min="0"
+                  required
                   value={newCourse.price}
                   onChange={(e) =>
                     setNewCourse({ ...newCourse, price: e.target.value })
@@ -1615,6 +2349,8 @@ export default function AdminDashboard() {
                 </label>
                 <input
                   type="number"
+                  min="1"
+                  required
                   value={newCourse.capacity}
                   onChange={(e) =>
                     setNewCourse({ ...newCourse, capacity: e.target.value })
@@ -1680,7 +2416,7 @@ export default function AdminDashboard() {
                   type="text"
                   value={newCourse.prerequisites}
                   onChange={(e) => setNewCourse({ ...newCourse, prerequisites: e.target.value })}
-                  placeholder="مثال: برنامه‌نویسی شی‌گرا"
+                  placeholder="نام درس‌های پیش‌نیاز (اختیاری)"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1693,7 +2429,7 @@ export default function AdminDashboard() {
                   type="text"
                   value={newCourse.corequisites}
                   onChange={(e) => setNewCourse({ ...newCourse, corequisites: e.target.value })}
-                  placeholder="مثال: مهندسی نرم‌افزار"
+                  placeholder="نام درس‌های هم‌نیاز (اختیاری)"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1706,7 +2442,7 @@ export default function AdminDashboard() {
                   type="text"
                   value={newCourse.prerequisite_topics}
                   onChange={(e) => setNewCourse({ ...newCourse, prerequisite_topics: e.target.value })}
-                  placeholder="مثال: آمار و احتمال، جبر خطی"
+                  placeholder="مباحث مورد نیاز (اختیاری)"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1749,7 +2485,7 @@ export default function AdminDashboard() {
                 onChange={(e) =>
                   setNewCourse({ ...newCourse, description: e.target.value })
                 }
-                placeholder="شرح اهداف، کاربردهای صنعتی و مهارت‌های کسب‌شده در این دوره..."
+                placeholder="شرح دوره"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
               />
             </div>
@@ -1764,7 +2500,7 @@ export default function AdminDashboard() {
                 onChange={(e) =>
                   setNewCourse({ ...newCourse, topicsText: e.target.value })
                 }
-                placeholder="مقدمه و تعاریف پایه|آشنایی با کلیات&#10;معماری و ساختار مدل‌ها&#10;پیاده‌سازی پروژه‌های عملی"
+                placeholder="هر سرفصل در یک خط؛ برای افزودن توضیح از | استفاده کنید"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
               />
             </div>
@@ -1778,7 +2514,7 @@ export default function AdminDashboard() {
                   rows={3}
                   value={newCourse.objectivesText}
                   onChange={(e) => setNewCourse({ ...newCourse, objectivesText: e.target.value })}
-                  placeholder="تسلط بر مبانی و اصول موضوع&#10;پیاده‌سازی پروژه‌های کاربردی صنعتی"
+                  placeholder="هر مورد در یک خط"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1791,7 +2527,7 @@ export default function AdminDashboard() {
                   rows={3}
                   value={newCourse.targetAudienceText}
                   onChange={(e) => setNewCourse({ ...newCourse, targetAudienceText: e.target.value })}
-                  placeholder="دانشجویان مهندسی کامپیوتر&#10;متخصصان صنعت نرم‌افزار"
+                  placeholder="هر مورد در یک خط"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1806,7 +2542,7 @@ export default function AdminDashboard() {
                   rows={3}
                   value={newCourse.softwareToolsText}
                   onChange={(e) => setNewCourse({ ...newCourse, softwareToolsText: e.target.value })}
-                  placeholder="زبان برنامه‌نویسی|Python 3.x&#10;کانتینرسازی|Docker, Kubernetes"
+                  placeholder="هر مورد در یک خط به صورت دسته|ابزارها"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1819,7 +2555,7 @@ export default function AdminDashboard() {
                   rows={3}
                   value={newCourse.gradingText}
                   onChange={(e) => setNewCourse({ ...newCourse, gradingText: e.target.value })}
-                  placeholder="تکالیف و پروژه کلاسی|۵۰٪&#10;آزمون پایانی|۵۰٪"
+                  placeholder="هر مورد در یک خط به صورت عنوان|درصد"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>
@@ -1833,7 +2569,7 @@ export default function AdminDashboard() {
                 rows={2}
                 value={newCourse.referencesText}
                 onChange={(e) => setNewCourse({ ...newCourse, referencesText: e.target.value })}
-                placeholder="Introduction to Machine Learning, MIT Press"
+                placeholder="هر مورد در یک خط"
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
               />
             </div>
@@ -1847,7 +2583,7 @@ export default function AdminDashboard() {
                   type="text"
                   value={newCourse.assignments_info}
                   onChange={(e) => setNewCourse({ ...newCourse, assignments_info: e.target.value })}
-                  placeholder="مثال: ۴ تکلیف عملی + پروژه پایانی"
+                  placeholder="توضیح تکالیف دوره (اختیاری)"
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-600 outline-hidden"
                 />
               </div>

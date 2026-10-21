@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import MainLayout from "@/components/Layout/MainLayout";
 import { courses } from "@/data/sampleData";
+import { useCurrentTerm } from "@/lib/terms";
 import {
   apiCreateBatchEnrollment,
   apiGetCourses,
@@ -22,6 +23,7 @@ import {
 } from "@/components/Icons";
 
 export default function Register() {
+  const { term: currentTerm } = useCurrentTerm();
   const [isMounted, setIsMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState([]);
@@ -61,7 +63,9 @@ export default function Register() {
     // removed or edited is reflected on the page students register from.
     apiGetCourses()
       .then((list) => {
-        if (!Array.isArray(list) || list.length === 0) return;
+        // An empty list is real data (the current term has no courses yet), not a reason
+        // to fall back to the bundled sample catalogue.
+        if (!Array.isArray(list)) return;
         const formatted = list.map((c) => ({
           id: c.course_number || c.id,
           title: c.title_fa || c.title,
@@ -164,7 +168,7 @@ export default function Register() {
       <div className="mb-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-semibold mb-3">
           <BookOpenIcon className="w-4 h-4 text-blue-600" />
-          <span>پرتال اخذ و ثبت‌نام دوره‌ها — ترم پاییز ۱۴۰۴</span>
+          <span>پرتال اخذ و ثبت‌نام دوره‌ها{currentTerm ? ` — ${currentTerm.title}` : ""}</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mb-2">
           انتخاب و اخذ دوره‌های تخصصی

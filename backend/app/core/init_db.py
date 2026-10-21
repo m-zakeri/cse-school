@@ -23,25 +23,73 @@ async def init_db(session: AsyncSession) -> None:
         await conn.execute(
             text("ALTER TABLE enrollments ALTER COLUMN final_grade TYPE NUMERIC(5, 2)")
         )
+        for column in (
+            "makeup_start", "makeup_end", "exam_start", "exam_end", "certificate_date",
+        ):
+            await conn.execute(text(f"ALTER TABLE terms ADD COLUMN IF NOT EXISTS {column} DATE"))
+        await conn.execute(
+            text(
+                "ALTER TABLE courses ADD COLUMN IF NOT EXISTS source_course_id UUID "
+                "REFERENCES courses(id) ON DELETE SET NULL"
+            )
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_courses_source_course_id ON courses (source_course_id)")
+        )
+        await conn.execute(text("ALTER TABLE courses ADD COLUMN IF NOT EXISTS image_url VARCHAR(255)"))
 
     logger.info("Database tables initialized successfully.")
 
-    # 2. Check and Seed Active Term (ترم پاییز ۱۴۰۴)
+    # 2. Terms (فصل‌ها). A brand-new database starts with the autumn 1404 term
+    #    (current) plus the two upcoming ones the academic calendar used to list.
+    #    After that the admins own the terms: nothing is re-created or re-activated.
     result = await session.execute(select(Term).where(Term.code == "1404-1"))
     term = result.scalars().first()
     if not term:
         term = Term(
             title="ترم پاییز ۱۴۰۴",
             code="1404-1",
-            registration_start=date(2025, 9, 1),
+            registration_start=date(2025, 9, 6),
             registration_end=date(2025, 9, 27),
             start_date=date(2025, 10, 2),
-            end_date=date(2025, 12, 20),
+            end_date=date(2025, 12, 16),
+            makeup_start=date(2025, 12, 1),
+            makeup_end=date(2025, 12, 6),
+            exam_start=date(2025, 12, 11),
+            exam_end=date(2025, 12, 16),
+            certificate_date=date(2025, 12, 31),
             is_active=True,
         )
         session.add(term)
+        session.add(
+            Term(
+                title="ترم زمستان ۱۴۰۴",
+                code="1404-2",
+                registration_start=date(2026, 1, 5),
+                start_date=date(2026, 1, 30),
+                is_active=False,
+            )
+        )
+        session.add(
+            Term(
+                title="ترم بهار ۱۴۰۵",
+                code="1404-3",
+                registration_start=date(2026, 3, 6),
+                start_date=date(2026, 4, 14),
+                is_active=False,
+            )
+        )
         await session.flush()
-        logger.info("Term 'ترم پاییز ۱۴۰۴' seeded.")
+        logger.info("Terms 'پاییز ۱۴۰۴', 'زمستان ۱۴۰۴' and 'بهار ۱۴۰۵' seeded.")
+    elif not any(
+        getattr(term, f) for f in ("makeup_start", "makeup_end", "exam_start", "exam_end", "certificate_date")
+    ):
+        # Database created before the calendar had these dates: fill them once.
+        term.makeup_start = date(2025, 12, 1)
+        term.makeup_end = date(2025, 12, 6)
+        term.exam_start = date(2025, 12, 11)
+        term.exam_end = date(2025, 12, 16)
+        term.certificate_date = date(2025, 12, 31)
 
     # 3. Check and Seed Instructors
     instructors_data = [
@@ -526,6 +574,28 @@ async def init_db(session: AsyncSession) -> None:
         # An existing course is left exactly as the admin last saved it. Seeding
         # only fills in what is missing; overwriting here would silently undo
         # every edit made in the admin panel on the next restart.
+
+    # Course pictures used to be picked in the frontend by course number. Store them
+    # on the course so a copy in another term keeps the picture of its original.
+    for number, picture in {
+        1: "/photos/coursepic/ml.jpg",
+        2: "/photos/coursepic/ST.jpg",
+        3: "/photos/coursepic/AP.jpg",
+        4: "/photos/coursepic/SE.jpg",
+        5: "/photos/coursepic/AP.jpg",
+        6: "/photos/coursepic/SE.jpg",
+        7: "/photos/coursepic/ml.jpg",
+    }.items():
+        await session.execute(
+            text("UPDATE courses SET image_url = :url WHERE course_number = :n AND image_url IS NULL"),
+            {"url": picture, "n": number},
+        )
+    await session.execute(
+        text(
+            "UPDATE courses c SET image_url = s.image_url FROM courses s "
+            "WHERE c.source_course_id = s.id AND c.image_url IS NULL AND s.image_url IS NOT NULL"
+        )
+    )
 
     # 5. Check and Seed Initial Superadmin / Admin User
     admin_email = settings.FIRST_SUPERUSER_EMAIL

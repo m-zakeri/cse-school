@@ -118,6 +118,8 @@ export default function CourseDetailClient({ params }) {
             ...mergedCourse,
             id: apiData.course_number || apiData.id,
             course_number: apiData.course_number || numId,
+            term: apiData.term || null,
+            image: apiData.image_url || mergedCourse.image,
             title: apiData.title_fa,
             englishTitle: apiData.title_en || mergedCourse.englishTitle,
             instructor:
@@ -203,6 +205,13 @@ export default function CourseDetailClient({ params }) {
     fetchCourseData();
   }, [rawId]);
 
+  // Let the header's breadcrumb name this course instead of a generic label.
+  useEffect(() => {
+    if (!course?.title) return undefined;
+    window.dispatchEvent(new CustomEvent("aut_breadcrumb", { detail: course.title }));
+    return undefined;
+  }, [course?.title, rawId]);
+
   const handlePrintSyllabus = () => {
     window.print();
   };
@@ -231,14 +240,16 @@ export default function CourseDetailClient({ params }) {
             </h2>
             <p className="text-xs text-slate-600">دانشکده مهندسی کامپیوتر</p>
             <p className="text-xs text-slate-600">
-              مدرسه پاییزه آموزش‌های تخصصی
+              مدرسه آموزش‌های تخصصی
             </p>
           </div>
           <div className="text-center">
             <h1 className="text-base font-extrabold text-slate-950">
               برنامه و سرفصل تفصیلی مصوب دوره
             </h1>
-            <p className="text-xs text-slate-500 mt-1">نیمسال پاییز ۱۴۰۴</p>
+            {course.term?.title && (
+              <p className="text-xs text-slate-500 mt-1">{course.term.title}</p>
+            )}
           </div>
           <div className="text-left text-xs text-slate-600">
             <p>
@@ -445,6 +456,10 @@ export default function CourseDetailClient({ params }) {
                   <CheckCircleIcon className="w-4 h-4" />
                   <span>مشاهده در پرتال کلاسی من</span>
                 </Link>
+              ) : course.term && !course.term.is_active ? (
+                <div className="w-full text-center bg-slate-100 text-slate-500 font-semibold py-3.5 px-4 rounded-xl text-xs">
+                  ثبت‌نام این دوره بسته است ({course.term.title})
+                </div>
               ) : (
                 <Link
                   href="/register"

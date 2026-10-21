@@ -1,0 +1,10 @@
+[Unit]
+Description=Check GitHub for a new CE School release every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

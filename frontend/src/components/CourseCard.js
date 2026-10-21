@@ -123,12 +123,18 @@ const CourseCard = ({ course }) => {
             <span>سرفصل و جزئیات</span>
             <ChevronLeftIcon className="w-3.5 h-3.5" />
           </Link>
-          <Link
-            href="/register"
-            className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-3 rounded-xl shadow-sm hover:shadow transition-all"
-          >
-            پیش‌ثبت‌نام
-          </Link>
+          {course.registrationClosed ? (
+            <span className="inline-flex items-center justify-center bg-slate-100 text-slate-500 text-xs font-semibold py-2.5 px-3 rounded-xl">
+              ثبت‌نام بسته است
+            </span>
+          ) : (
+            <Link
+              href="/register"
+              className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-3 rounded-xl shadow-sm hover:shadow transition-all"
+            >
+              پیش‌ثبت‌نام
+            </Link>
+          )}
         </div>
       </div>
     </div>
