@@ -27,11 +27,22 @@ log() { printf '\n==> %s\n' "$*"; }
 
 log "Docker"
 if ! command -v docker >/dev/null 2>&1; then
-  echo "Docker is not installed; installing it with the official script (needs internet)."
-  curl -fsSL https://get.docker.com | sh
+  echo "Docker is not installed; installing it (needs internet)."
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq && apt-get install -y docker.io
+  else
+    curl -fsSL https://get.docker.com | sh
+  fi
 fi
-docker compose version >/dev/null 2>&1 || {
-  echo "The 'docker compose' plugin is missing. Install docker-compose-plugin and re-run."; exit 1; }
+if ! docker compose version >/dev/null 2>&1; then
+  echo "The 'docker compose' plugin is missing; installing it."
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y docker-compose-v2 || apt-get install -y docker-compose-plugin || true
+  fi
+  docker compose version >/dev/null 2>&1 || {
+    echo "Could not install the docker compose plugin. Install it manually and re-run."; exit 1; }
+fi
 systemctl enable --now docker
 
 for tool in git curl python3 flock; do
