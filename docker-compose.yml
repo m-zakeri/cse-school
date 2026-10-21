@@ -21,7 +21,7 @@ services:
         # the *browser* uses to reach the API.
         NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}"
     ports:
-      - "3000:3000"
+      - "${BIND_ADDR:-0.0.0.0}:3000:3000"
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
@@ -38,7 +38,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "${BIND_ADDR:-0.0.0.0}:8000:8000"
     environment:
       # `:?` makes compose refuse to start when the value is missing, so a
       # production stack can never silently fall back to a shared key.
@@ -67,6 +67,32 @@ services:
         condition: service_started
       minio:
         condition: service_started
+
+  # The only thing a visitor talks to on a server: everything is served from one
+  # address on one port (HTTP_PORT, 80 in production) and nginx routes it. Set
+  # BIND_ADDR=127.0.0.1 in .env so the app ports (3000/8000/9000) are not reachable
+  # from outside. Locally HTTP_PORT defaults to 8080 so it never fights for port 80.
+  nginx:
+    image: nginx:1.27-alpine
+    logging: *default-logging
+    container_name: ce-school-nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
 
   postgres:
     image: postgres:16-alpine
@@ -111,7 +137,7 @@ services:
       MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?missing MINIO_ROOT_PASSWORD, see .env.example}"
     ports:
-      - "9000:9000"
+      - "${BIND_ADDR:-0.0.0.0}:9000:9000"
       # Admin console: local only. Reach it through an SSH tunnel if needed.
       - "127.0.0.1:9001:9001"
     volumes:
