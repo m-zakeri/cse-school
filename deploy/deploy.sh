@@ -10,6 +10,7 @@
 #   ENV_FILE   secrets/config file       (default /etc/ce-school/.env)
 #   STATE_DIR  where bookkeeping lives   (default /var/lib/ce-school)
 #   WAIT_SECS  health wait budget        (default 240)
+#   NO_BUILD=1 use prebuilt images ce-school/{backend,frontend}:incoming instead of building
 set -Eeuo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -79,8 +80,20 @@ on_failure() {
 deploy_fail() { log "ERROR: $*"; on_failure; }
 trap on_failure ERR
 
-"${COMPOSE[@]}" build
-"${COMPOSE[@]}" up -d --remove-orphans
+if [ "${NO_BUILD:-0}" = 1 ]; then
+  # Images were built elsewhere and loaded with `docker load` as ce-school/<svc>:incoming
+  # (needed when this server cannot reach the registries/package mirrors a build uses).
+  for svc in "${SERVICES[@]}"; do
+    docker image inspect "ce-school/$svc:incoming" >/dev/null 2>&1 \
+      || deploy_fail "NO_BUILD=1 but image ce-school/$svc:incoming is not loaded"
+    docker tag "ce-school/$svc:incoming" "ce-school/$svc:latest"
+  done
+  log "using the prebuilt images"
+  "${COMPOSE[@]}" up -d --no-build --remove-orphans
+else
+  "${COMPOSE[@]}" build
+  "${COMPOSE[@]}" up -d --remove-orphans
+fi
 
 log "waiting for the API to become healthy (up to ${WAIT_SECS}s)"
 deadline=$((SECONDS + WAIT_SECS))
